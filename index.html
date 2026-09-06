@@ -787,9 +787,19 @@ async function startCam(){
       Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
       Html5QrcodeSupportedFormats.ITF], verbose:false });
     await S.scanner.start({facingMode:'environment'},
-      {fps:12, qrbox:{width:260,height:150}, aspectRatio:1.4}, onScan, ()=>{});
+      {fps:12, qrbox:{width:260,height:150}, aspectRatio:1.4,
+       videoConstraints:{facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080}}},
+      onScan, ()=>{});
     S.camOn=true; $('camBtn').textContent='ปิดกล้อง';
     $('scanHint').textContent='เล็งบาร์โค้ดให้อยู่ในกรอบ';
+    // เปิดโหมดโฟกัสต่อเนื่อง (ถ้ากล้องเครื่องนั้นรองรับ) ช่วยให้อ่านบาร์โค้ดชัดขึ้นตอนขยับมือถือเข้า-ออก
+    // ไม่ทุกอุปกรณ์/เบราว์เซอร์รองรับ ถ้าไม่รองรับก็ข้ามไปเงียบๆ ไม่ให้กระทบการสแกนปกติ
+    try{
+      const caps = S.scanner.getRunningTrackCapabilities?.();
+      if(caps?.focusMode?.includes('continuous')){
+        await S.scanner.applyVideoConstraints({advanced:[{focusMode:'continuous'}]});
+      }
+    }catch(e){}
   }catch(e){
     console.error(e);
     $('scanHint').textContent='เปิดกล้องไม่ได้ — ใช้ปุ่มพิมพ์บาร์โค้ดเองได้เลย';
