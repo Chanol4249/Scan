@@ -239,7 +239,9 @@ function openDoc(id){
 function calcNewPrice(price, pct){
   price = Number(price); pct = Number(pct);
   if(!price || !pct) return '';
-  return Math.ceil(price - price*pct);
+  // ตัดเศษ floating-point ก่อนปัดขึ้นเสมอ (เช่น 90-90*0.7 ได้ 27.000000000000007 ใน JS
+  // ถ้า Math.ceil ตรงๆ จะปัดเป็น 28 ผิดไป 1 บาท) — จุดเดียวกับที่ roundUpPrice() ในหน้ามือถือกันไว้แล้ว
+  return Math.ceil(Number((price - price*pct).toFixed(6)));
 }
 function renderModalItems(){
   const items = D.modalDoc.items||[];
