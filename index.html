@@ -267,6 +267,12 @@ button.mode-tile:focus-visible{outline:3px solid rgba(22,155,117,.24);outline-of
 </section>
 
 <section id="vScan" class="wrap" style="display:none">
+  <div class="card" id="scanCodeCard" style="display:none; padding:14px">
+    <div class="field" style="margin:0">
+      <label class="fld">Adjust code (ใช้กับทุกรายการที่สแกนต่อจากนี้)</label>
+      <select id="scanCodeSel" onchange="onScanCodeSelChange()"></select>
+    </div>
+  </div>
   <div class="card" style="padding:14px">
     <div id="reader"></div>
     <div class="scanhint" id="scanHint">กำลังเปิดกล้อง…</div>
@@ -315,7 +321,6 @@ button.mode-tile:focus-visible{outline:3px solid rgba(22,155,117,.24);outline-of
       <div class="nm" id="shName">—</div>
       <div class="bc" id="shBc"></div>
       <div class="bc" id="shWeight" style="display:none"></div>
-      <div class="bc" id="shUnitPrice" style="display:none"></div>
     </div>
     <div class="field" id="wrapManualName" style="display:none">
       <label class="fld">ชื่อสินค้า (ไม่พบในรายการ — พิมพ์เอง)</label>
@@ -349,6 +354,10 @@ button.mode-tile:focus-visible{outline:3px solid rgba(22,155,117,.24);outline-of
         <div class="field"><label class="fld">หน่วยขาย</label><input id="fUnit" value="ชิ้น"></div>
         <div class="field"><label class="fld">ราคาขาย (บาท)</label>
           <input id="fPrice" type="number" inputmode="decimal" step="0.01"></div>
+      </div>
+      <div class="field" id="wrapUnitPrice" style="display:none">
+        <label class="fld">ราคาต่อกก. (บาท) — แก้ไขราคากลางในฐานข้อมูลได้ที่นี่</label>
+        <input id="fUnitPrice" type="number" inputmode="decimal" step="0.01">
       </div>
       <div class="field">
         <label class="fld">% ลดราคา</label>
@@ -392,7 +401,7 @@ const PCTS = [20,25,30,50,75];
 
 const S = { mode:null, view:'home', master:{}, items:{ADJ:[], RTC:[]},
   edit:null, pending:null, scanner:null, camOn:false, lastScan:{code:'',t:0}, ready:false,
-  employee:null, docId:null, locked:false, online:false };
+  employee:null, docId:null, locked:false, online:false, defaultAdjCode:'' };
 
 // iOS Safari ไม่ apply :active pseudo-class ตอนแตะ (tap) ถ้าไม่มี touch listener ผูกไว้ในหน้า —
 // listener เปล่านี้ทำให้ animation กดปุ่ม (:active) ที่ตั้งไว้ใน CSS ทำงานจริงบนมือถือ iPhone
@@ -698,6 +707,13 @@ async function loadMaster(inp){
 }
 
 /* ---------- navigation ---------- */
+// ให้เลือก Adjust code ล่วงหน้าก่อนสแกน (โหมด ADJ) — เวลาทำของชิ้นเดิมรัวๆ ทีละหลายชิ้นแบบใช้โค้ด
+// เดียวกันหมด (เช่น ชำรุดยกลัง) จะได้ไม่ต้องมาเลือกโค้ดซ้ำทุกครั้งที่สแกนในชีท
+function buildScanCodeSel(){
+  $('scanCodeSel').innerHTML = '<option value="">ไม่เลือกล่วงหน้า (เลือกทีละรายการ)</option>' +
+    CODES.map(o=>'<option value="'+o.c+'"'+(String(S.defaultAdjCode)===String(o.c)?' selected':'')+'>'+o.t+'</option>').join('');
+}
+function onScanCodeSelChange(){ S.defaultAdjCode = $('scanCodeSel').value; }
 function applyModeUI(m){
   S.mode=m;
   if(S.docId&&!S.locked) setSyncBadge('draft');
@@ -708,6 +724,8 @@ function applyModeUI(m){
   $('saveBtn').className='btn'+(m==='RTC'?' teal':'');
   $('tabs').style.display='flex';
   $('scanCount').textContent = S.items[m].length ? ('บันทึกแล้ว '+S.items[m].length+' รายการ') : 'ยังไม่มีรายการ';
+  $('scanCodeCard').style.display = m==='ADJ' ? 'block' : 'none';
+  if(m==='ADJ') buildScanCodeSel();
   paintHomeIdentity();
   go('scan');
 }
@@ -733,7 +751,7 @@ function pickMode(m){
     }
   }
   S.docId=m+'-'+S.employee.code+'-'+docTimeStamp()+'-'+Math.random().toString(36).slice(2,5);
-  S.items[m]=[]; S.locked=false;
+  S.items[m]=[]; S.locked=false; S.defaultAdjCode='';
   setTimeout(()=>{
     applyModeUI(m);
     saveDraft();
@@ -838,15 +856,22 @@ function toggleQtySign(){
 function calcPrice(){
   const p=Number($('fPrice').value), pct=Number($('fPct').value);
   $('shCalc').textContent = (p>0&&pct>0) ? roundUpPrice(p,pct/100).toLocaleString()+' ฿' : '—';
-  // สินค้าชั่งน้ำหนัก — โชว์ราคาต่อกก. คู่กับน้ำหนัก จะได้เทียบกับป้ายราคาจริงได้ตรงๆ
-  if(S.pendingWeightKg && p>0){
-    $('shUnitPrice').textContent = 'ราคาต่อกก. '+(Math.round((p/S.pendingWeightKg)*100)/100).toLocaleString()+' บาท';
-    $('shUnitPrice').style.display='block';
-  }else{
-    $('shUnitPrice').style.display='none';
+  // สินค้าชั่งน้ำหนัก — ซิงก์ราคาต่อกก. ให้ตรงกับราคาขายเสมอ (เว้นแต่กำลังพิมพ์อยู่ในช่องนั้นเอง
+  // ไม่งั้นเคอร์เซอร์จะกระโดดขณะพิมพ์)
+  if(S.pendingWeightKg && p>0 && document.activeElement!==$('fUnitPrice')){
+    $('fUnitPrice').value = Math.round((p/S.pendingWeightKg)*100)/100;
   }
 }
+// แก้ราคาต่อกก. ตรงๆ ได้ (เช่นราคากลางผิด) -> คำนวณราคาขายรวมของถุงนี้กลับมาให้ตรงกัน
+function onUnitPriceInput(){
+  const up=Number($('fUnitPrice').value);
+  if(S.pendingWeightKg && up>0){
+    $('fPrice').value = Math.round(up*S.pendingWeightKg*100)/100;
+  }
+  calcPrice();
+}
 $('fPrice').addEventListener('input', calcPrice);
+$('fUnitPrice').addEventListener('input', onUnitPriceInput);
 $('fPct').addEventListener('input', ()=>{ buildChips(); calcPrice(); });
 $('fCodeSel').addEventListener('change', onCodeSelChange);
 $('fCode').addEventListener('input', buildChips);
@@ -866,6 +891,7 @@ function openSheet(bc, editIdx, weightKg){
   // แสดงน้ำหนักที่ถอดจากบาร์โค้ดให้เห็นด้วย (เฉพาะสินค้าชั่งน้ำหนัก) จะได้เช็คกับป้ายจริงได้ทันที
   if(weightKg){ $('shWeight').textContent = 'น้ำหนัก '+weightKg.toFixed(3)+' กก.'; $('shWeight').style.display='block'; }
   else { $('shWeight').style.display='none'; }
+  $('wrapUnitPrice').style.display = weightKg ? 'block' : 'none';
   $('shName').textContent = (it&&it.name)||(m&&m.name)||'ไม่พบในรายการสินค้า';
   $('shProd').className = 'prodbox'+(((m&&m.name)||(it&&it.name))?'':' warn');
   $('wrapManualName').style.display = (m&&m.name)?'none':'block';
@@ -878,16 +904,20 @@ function openSheet(bc, editIdx, weightKg){
     // master ก่อน ถึงจะได้ราคาจริงของชิ้นนั้น ไม่ใช่ราคาต่อกก./ต่อหน่วยเฉยๆ (แก้รายการเดิมใช้ it.price เดิมไว้)
     const scaledPrice = (!it && weightKg && m && m.price) ? Math.round(weightKg*m.price*100)/100 : null;
     $('fPrice').value=(it&&it.price)||scaledPrice||(m&&m.price)||'';
+    // ราคาต่อกก. เริ่มต้นจากราคากลางที่มีอยู่แล้ว (ของใหม่เท่านั้น) ให้ตรงกับราคาขายที่คำนวณไว้ข้างบน
+    $('fUnitPrice').value = (!it && weightKg && m && m.price) ? m.price : '';
     $('fPct').value= it?Math.round(it.pct*100):'';
     $('fRQty').value= it?it.qty:1;
     $('fRExp').value=(it&&it.expIso)||'';
   }else{
-    $('fCode').value= it?it.code:'';
+    // ของใหม่ (ไม่ใช่แก้รายการเดิม) — ถ้าเลือก Adjust code ไว้ล่วงหน้าก่อนสแกน ให้ใส่ให้อัตโนมัติเลย
+    $('fCode').value= it?it.code:(S.defaultAdjCode||'');
     $('fQty').value= it?it.qty:'';
     $('fReason').value=(it&&it.reason)||'';
     $('fExp').value=(it&&it.expIso)||'';
   }
   buildChips(); calcPrice();
+  if(!isRTC && !it && S.defaultAdjCode) onCodeSelChange();
   S.pending=code;
   $('sheet').classList.add('show');
 }
