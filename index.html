@@ -267,6 +267,12 @@ button.mode-tile:focus-visible{outline:3px solid rgba(22,155,117,.24);outline-of
 </section>
 
 <section id="vScan" class="wrap" style="display:none">
+  <div class="card" id="scanCodeCard" style="display:none; padding:14px">
+    <div class="field" style="margin:0">
+      <label class="fld">Adjust code (ใช้กับทุกรายการที่สแกนต่อจากนี้)</label>
+      <select id="scanCodeSel" onchange="onScanCodeSelChange()"></select>
+    </div>
+  </div>
   <div class="card" style="padding:14px">
     <div id="reader"></div>
     <div class="scanhint" id="scanHint">กำลังเปิดกล้อง…</div>
@@ -392,7 +398,7 @@ const PCTS = [20,25,30,50,75];
 
 const S = { mode:null, view:'home', master:{}, items:{ADJ:[], RTC:[]},
   edit:null, pending:null, scanner:null, camOn:false, lastScan:{code:'',t:0}, ready:false,
-  employee:null, docId:null, locked:false, online:false };
+  employee:null, docId:null, locked:false, online:false, defaultAdjCode:'' };
 
 // iOS Safari ไม่ apply :active pseudo-class ตอนแตะ (tap) ถ้าไม่มี touch listener ผูกไว้ในหน้า —
 // listener เปล่านี้ทำให้ animation กดปุ่ม (:active) ที่ตั้งไว้ใน CSS ทำงานจริงบนมือถือ iPhone
@@ -698,6 +704,13 @@ async function loadMaster(inp){
 }
 
 /* ---------- navigation ---------- */
+// ให้เลือก Adjust code ล่วงหน้าก่อนสแกน (โหมด ADJ) — เวลาทำของชิ้นเดิมรัวๆ ทีละหลายชิ้นแบบใช้โค้ด
+// เดียวกันหมด (เช่น ชำรุดยกลัง) จะได้ไม่ต้องมาเลือกโค้ดซ้ำทุกครั้งที่สแกนในชีท
+function buildScanCodeSel(){
+  $('scanCodeSel').innerHTML = '<option value="">ไม่เลือกล่วงหน้า (เลือกทีละรายการ)</option>' +
+    CODES.map(o=>'<option value="'+o.c+'"'+(String(S.defaultAdjCode)===String(o.c)?' selected':'')+'>'+o.t+'</option>').join('');
+}
+function onScanCodeSelChange(){ S.defaultAdjCode = $('scanCodeSel').value; }
 function applyModeUI(m){
   S.mode=m;
   if(S.docId&&!S.locked) setSyncBadge('draft');
@@ -708,6 +721,8 @@ function applyModeUI(m){
   $('saveBtn').className='btn'+(m==='RTC'?' teal':'');
   $('tabs').style.display='flex';
   $('scanCount').textContent = S.items[m].length ? ('บันทึกแล้ว '+S.items[m].length+' รายการ') : 'ยังไม่มีรายการ';
+  $('scanCodeCard').style.display = m==='ADJ' ? 'block' : 'none';
+  if(m==='ADJ') buildScanCodeSel();
   paintHomeIdentity();
   go('scan');
 }
@@ -733,7 +748,7 @@ function pickMode(m){
     }
   }
   S.docId=m+'-'+S.employee.code+'-'+docTimeStamp()+'-'+Math.random().toString(36).slice(2,5);
-  S.items[m]=[]; S.locked=false;
+  S.items[m]=[]; S.locked=false; S.defaultAdjCode='';
   setTimeout(()=>{
     applyModeUI(m);
     saveDraft();
@@ -882,12 +897,14 @@ function openSheet(bc, editIdx, weightKg){
     $('fRQty').value= it?it.qty:1;
     $('fRExp').value=(it&&it.expIso)||'';
   }else{
-    $('fCode').value= it?it.code:'';
+    // ของใหม่ (ไม่ใช่แก้รายการเดิม) — ถ้าเลือก Adjust code ไว้ล่วงหน้าก่อนสแกน ให้ใส่ให้อัตโนมัติเลย
+    $('fCode').value= it?it.code:(S.defaultAdjCode||'');
     $('fQty').value= it?it.qty:'';
     $('fReason').value=(it&&it.reason)||'';
     $('fExp').value=(it&&it.expIso)||'';
   }
   buildChips(); calcPrice();
+  if(!isRTC && !it && S.defaultAdjCode) onCodeSelChange();
   S.pending=code;
   $('sheet').classList.add('show');
 }
