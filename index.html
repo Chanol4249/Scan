@@ -877,6 +877,15 @@ $('fCodeSel').addEventListener('change', onCodeSelChange);
 $('fCode').addEventListener('input', buildChips);
 $('fReasonSel').addEventListener('change', onReasonSelChange);
 $('fReason').addEventListener('input', buildChips);
+// สินค้าชั่งน้ำหนัก — น้ำหนักที่โชว์ต้องคูณตามจำนวนที่กรอกด้วย (สแกนบาร์โค้ดเดียวแต่ปรับจำนวนหลายชิ้น
+// ของน้ำหนักเท่ากันทุกชิ้น เช่น -2 ชิ้น ก็ควรเห็นน้ำหนักรวม ไม่ใช่แค่น้ำหนักชิ้นเดียว)
+function updateWeightDisplay(){
+  if(!S.baseWeightKg) return;
+  const qty = Math.abs(Number(S.mode==='RTC' ? $('fRQty').value : $('fQty').value)) || 1;
+  $('shWeight').textContent = 'น้ำหนัก '+(S.baseWeightKg*qty).toFixed(3)+' กก.'+(qty>1?(' (x'+qty+')'):'');
+}
+$('fQty').addEventListener('input', updateWeightDisplay);
+$('fRQty').addEventListener('input', updateWeightDisplay);
 
 function openSheet(bc, editIdx, weightKg){
   S.edit = (editIdx==null)?null:editIdx;
@@ -886,11 +895,12 @@ function openSheet(bc, editIdx, weightKg){
   const m = S.master[code];
   // ต้องตั้งก่อนเรียก calcPrice() ด้านล่าง เพราะใช้คำนวณราคาต่อกก. ให้โชว์ทันทีตอนเปิดชีท
   S.pendingWeightKg = (S.edit==null) ? (weightKg || null) : null;
+  // น้ำหนักต่อชิ้นที่ถอดจากบาร์โค้ด — ใช้คูณกับจำนวนที่กรอก เพื่อโชว์น้ำหนักรวมของทั้งรายการ
+  S.baseWeightKg = (S.edit==null) ? (weightKg || null) : null;
   $('shTitle').textContent = S.edit!=null?'แก้ไขรายการ':'เพิ่มรายการ';
   $('shBc').textContent = code;
   // แสดงน้ำหนักที่ถอดจากบาร์โค้ดให้เห็นด้วย (เฉพาะสินค้าชั่งน้ำหนัก) จะได้เช็คกับป้ายจริงได้ทันที
-  if(weightKg){ $('shWeight').textContent = 'น้ำหนัก '+weightKg.toFixed(3)+' กก.'; $('shWeight').style.display='block'; }
-  else { $('shWeight').style.display='none'; }
+  $('shWeight').style.display = weightKg ? 'block' : 'none';
   $('wrapUnitPrice').style.display = weightKg ? 'block' : 'none';
   $('shName').textContent = (it&&it.name)||(m&&m.name)||'ไม่พบในรายการสินค้า';
   $('shProd').className = 'prodbox'+(((m&&m.name)||(it&&it.name))?'':' warn');
@@ -916,12 +926,12 @@ function openSheet(bc, editIdx, weightKg){
     $('fReason').value=(it&&it.reason)||'';
     $('fExp').value=(it&&it.expIso)||'';
   }
-  buildChips(); calcPrice();
-  if(!isRTC && !it && S.defaultAdjCode) onCodeSelChange();
+  buildChips(); calcPrice(); updateWeightDisplay();
+  if(!isRTC && !it && S.defaultAdjCode){ onCodeSelChange(); updateWeightDisplay(); }
   S.pending=code;
   $('sheet').classList.add('show');
 }
-function closeSheet(){ $('sheet').classList.remove('show'); S.pending=null; S.edit=null; S.pendingWeightKg=null;
+function closeSheet(){ $('sheet').classList.remove('show'); S.pending=null; S.edit=null; S.pendingWeightKg=null; S.baseWeightKg=null;
   if(S.view==='scan'&&!S.camOn) startCam(); }
 function saveItem(){
   if(S.locked){ toast('เอกสารนี้ถูกล็อกแล้ว แก้ไขไม่ได้'); closeSheet(); return; }
