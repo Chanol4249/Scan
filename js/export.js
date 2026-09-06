@@ -15,11 +15,11 @@
 var EXPORT_CFG = {
   ADJ: { sheetName: 'adjust_qty_form1', first: 5, last: 47, hdrBranch: 'A2', hdrDate: 'A3',
          cols: { no: 'A', bc: 'B', name: 'C', code: 'D', qty: 'E', reason: 'F', exp: 'G' },
-         templateUrl: 'templates/ADJ_template.xlsx?v=20260905-1800' },
+         templateUrl: 'templates/ADJ_template.xlsx?v=20260905-2000' },
   RTC: { sheetName: 'From', first: 9, last: 28, hdrBranch: 'A4', hdrDate: 'A5',
          cols: { no: 'A', bc: 'B', name: 'C', unit: 'D', price: 'E', pct: 'F', qty: 'G',
                  newPrice: 'H', left: 'I', dateC25: 'J', exp: 'K' },
-         templateUrl: 'templates/RTC_template.xlsx?v=20260905-1800' }
+         templateUrl: 'templates/RTC_template.xlsx?v=20260905-2000' }
 };
 
 function exportThDate(iso) { if (!iso) return ''; const p = iso.split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
