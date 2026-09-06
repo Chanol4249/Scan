@@ -433,10 +433,11 @@ function scaleWeightKg(bc){
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function thDate(iso){ if(!iso) return ''; const p=iso.split('-'); return p.length===3? p[2]+'/'+p[1]+'/'+p[0] : iso; }
 function roundUpPrice(price,pct){ return Math.ceil(Number((price-(price*pct)).toFixed(6))); }
-// ปัดเศษราคา/ราคาต่อกก. ของสินค้าชั่งน้ำหนักเป็นทวีคูณของ 0.25 บาท (ระบบเงินสดไทย 25/50/75 สตางค์)
+// ปัดเศษราคา/ราคาต่อกก. ของสินค้าชั่งน้ำหนักเป็นทวีคูณของ 0.50 บาท ให้ตรงกับเครื่องชั่งพิมพ์ป้ายราคาจริงของร้าน
+// (เทียบป้ายราคาจริง 0.564 กก. x 152 บาท/กก. = 85.728 -> เครื่องพิมพ์ 85.50 ไม่ใช่ 85.73 หรือ 85.75)
 // แทนปัดเป็นสตางค์ตรงๆ — ช่วยลดปัญหาราคาต่อกก.ไหลเปลี่ยนไปทีละ 0.01-0.02 บาททุกครั้งที่คำนวณ
-// ราคาขายรวม <-> ราคาต่อกก. สลับไปมา (ตัวเลขที่ใกล้กันมากจะถูกปัดไปที่ค่าเดียวกัน)
-function roundThaiCash(x){ return Math.round(x*4)/4; }
+// ราคาขายรวม <-> ราคาต่อกก. สลับไปมา (ตัวเลขที่ใกล้กันมากจะถูกปัดไปที่ค่าเดียวกัน) และให้ตรงกับป้ายราคาจริงด้วย
+function roundThaiCash(x){ return Math.round(x*2)/2; }
 
 function loadScript(urls){
   return new Promise((res,rej)=>{ let i=0;
@@ -863,8 +864,13 @@ function toggleQtySign(){
 function calcPrice(){
   const p=Number($('fPrice').value), pct=Number($('fPct').value);
   $('shCalc').textContent = (p>0&&pct>0) ? roundUpPrice(p,pct/100).toLocaleString()+' ฿' : '—';
-  // สินค้าชั่งน้ำหนัก — ซิงก์ราคาต่อกก. ให้ตรงกับราคาขายเสมอ (เว้นแต่กำลังพิมพ์อยู่ในช่องนั้นเอง
-  // ไม่งั้นเคอร์เซอร์จะกระโดดขณะพิมพ์)
+}
+// ผู้ใช้พิมพ์แก้ราคาขายเอง -> ซิงก์ราคาต่อกก. ให้ตรงกัน (เว้นแต่กำลังพิมพ์อยู่ในช่องนั้นเองไม่งั้นเคอร์เซอร์
+// จะกระโดดขณะพิมพ์) แยกจาก calcPrice() เพราะตอนเปิดชีทครั้งแรก fUnitPrice ถูกตั้งจากราคากลางที่ถูกต้อง
+// อยู่แล้ว ถ้าให้ calcPrice() คำนวณราคาต่อกก.กลับจากราคาขายที่ปัดเศษแล้วทันที จะได้ค่าที่ไม่ตรงกับราคากลางจริง
+function onPriceInput(){
+  calcPrice();
+  const p=Number($('fPrice').value);
   if(S.pendingWeightKg && p>0 && document.activeElement!==$('fUnitPrice')){
     $('fUnitPrice').value = roundThaiCash(p/S.pendingWeightKg);
   }
@@ -877,7 +883,7 @@ function onUnitPriceInput(){
   }
   calcPrice();
 }
-$('fPrice').addEventListener('input', calcPrice);
+$('fPrice').addEventListener('input', onPriceInput);
 $('fUnitPrice').addEventListener('input', onUnitPriceInput);
 $('fPct').addEventListener('input', ()=>{ buildChips(); calcPrice(); });
 $('fCodeSel').addEventListener('change', onCodeSelChange);
