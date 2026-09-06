@@ -433,6 +433,10 @@ function scaleWeightKg(bc){
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function thDate(iso){ if(!iso) return ''; const p=iso.split('-'); return p.length===3? p[2]+'/'+p[1]+'/'+p[0] : iso; }
 function roundUpPrice(price,pct){ return Math.ceil(Number((price-(price*pct)).toFixed(6))); }
+// ปัดเศษราคา/ราคาต่อกก. ของสินค้าชั่งน้ำหนักเป็นทวีคูณของ 0.25 บาท (ระบบเงินสดไทย 25/50/75 สตางค์)
+// แทนปัดเป็นสตางค์ตรงๆ — ช่วยลดปัญหาราคาต่อกก.ไหลเปลี่ยนไปทีละ 0.01-0.02 บาททุกครั้งที่คำนวณ
+// ราคาขายรวม <-> ราคาต่อกก. สลับไปมา (ตัวเลขที่ใกล้กันมากจะถูกปัดไปที่ค่าเดียวกัน)
+function roundThaiCash(x){ return Math.round(x*4)/4; }
 
 function loadScript(urls){
   return new Promise((res,rej)=>{ let i=0;
@@ -862,14 +866,14 @@ function calcPrice(){
   // สินค้าชั่งน้ำหนัก — ซิงก์ราคาต่อกก. ให้ตรงกับราคาขายเสมอ (เว้นแต่กำลังพิมพ์อยู่ในช่องนั้นเอง
   // ไม่งั้นเคอร์เซอร์จะกระโดดขณะพิมพ์)
   if(S.pendingWeightKg && p>0 && document.activeElement!==$('fUnitPrice')){
-    $('fUnitPrice').value = Math.round((p/S.pendingWeightKg)*100)/100;
+    $('fUnitPrice').value = roundThaiCash(p/S.pendingWeightKg);
   }
 }
 // แก้ราคาต่อกก. ตรงๆ ได้ (เช่นราคากลางผิด) -> คำนวณราคาขายรวมของถุงนี้กลับมาให้ตรงกัน
 function onUnitPriceInput(){
   const up=Number($('fUnitPrice').value);
   if(S.pendingWeightKg && up>0){
-    $('fPrice').value = Math.round(up*S.pendingWeightKg*100)/100;
+    $('fPrice').value = roundThaiCash(up*S.pendingWeightKg);
   }
   calcPrice();
 }
@@ -919,7 +923,7 @@ function openSheet(bc, editIdx, weightKg){
     $('fUnit').value=(it&&it.unit)||(m&&m.unit)||'ชิ้น';
     // ของใหม่ (ไม่ใช่แก้รายการเดิม) ที่เป็นสินค้าชั่งน้ำหนัก — เอาน้ำหนักจากบาร์โค้ดคูณราคาต่อหน่วยใน
     // master ก่อน ถึงจะได้ราคาจริงของชิ้นนั้น ไม่ใช่ราคาต่อกก./ต่อหน่วยเฉยๆ (แก้รายการเดิมใช้ it.price เดิมไว้)
-    const scaledPrice = (!it && weightKg && m && m.price) ? Math.round(weightKg*m.price*100)/100 : null;
+    const scaledPrice = (!it && weightKg && m && m.price) ? roundThaiCash(weightKg*m.price) : null;
     $('fPrice').value=(it&&it.price)||scaledPrice||(m&&m.price)||'';
     // ราคาต่อกก. เริ่มต้นจากราคากลางที่มีอยู่แล้ว (ของใหม่เท่านั้น) ให้ตรงกับราคาขายที่คำนวณไว้ข้างบน
     $('fUnitPrice').value = (!it && weightKg && m && m.price) ? m.price : '';
@@ -975,7 +979,7 @@ function saveItem(){
     // สินค้าชั่งน้ำหนัก: o.price คือราคารวมของถุงนี้ ต้องหารน้ำหนักออกก่อนเก็บเป็นราคาต่อกก. ใน master
     // ไม่งั้นสแกนถุงเดียวกัน (PLU เดียวกัน) แต่คนละน้ำหนักครั้งต่อไปจะได้ราคาผิด
     const newPrice=S.mode==='RTC'
-      ? (S.pendingWeightKg ? Math.round((o.price/S.pendingWeightKg)*100)/100 : o.price)
+      ? (S.pendingWeightKg ? roundThaiCash(o.price/S.pendingWeightKg) : o.price)
       : undefined;
     const newUnit=S.mode==='RTC'?o.unit:undefined;
     S.master[bc]=Object.assign({name}, newPrice?{price:newPrice}:{}, newUnit?{unit:newUnit}:{});
@@ -983,7 +987,7 @@ function saveItem(){
   }else if(S.mode==='RTC' && S.edit==null){
     // สินค้ามีอยู่ใน master แล้ว แต่ราคาที่กรอกตอนสแกนครั้งนี้ไม่ตรงกับราคาเดิม (ราคาสินค้าเปลี่ยน)
     // -> อัปเดตฐานข้อมูลกลางด้วยราคาล่าสุดทันที ครั้งต่อไปสแกนจะได้ราคาที่ถูกต้อง ไม่ต้องพิมพ์ซ้ำทุกครั้ง
-    const unitPrice = S.pendingWeightKg ? Math.round((o.price/S.pendingWeightKg)*100)/100 : o.price;
+    const unitPrice = S.pendingWeightKg ? roundThaiCash(o.price/S.pendingWeightKg) : o.price;
     const unitChanged = o.unit && o.unit!==m.unit;
     if(Math.abs((m.price||0)-unitPrice)>0.001 || unitChanged){
       S.master[bc]=Object.assign({}, m, {price:unitPrice}, o.unit?{unit:o.unit}:{});
