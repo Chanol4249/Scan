@@ -839,7 +839,10 @@ function onCodeSelChange(){
               c===22?'ขาดส่งจาก DC':c===23?'ผลต่างตรวจนับ':'';
     if(r){ $('fReason').value=r; buildChips(); }
   }
-  if(!$('fQty').value && [13,21,22,23,25].indexOf(c)>=0) $('fQty').value='-1';
+  if(!$('fQty').value && [13,21,22,23,25].indexOf(c)>=0){
+    // สินค้าชั่งน้ำหนัก -> ปรับสต็อกเป็นน้ำหนักจริงจากบาร์โค้ด (กก.) แทนนับเป็น 1 ชิ้น
+    $('fQty').value = S.baseWeightKg ? -S.baseWeightKg : '-1';
+  }
 }
 function onReasonSelChange(){
   const v=$('fReasonSel').value;
@@ -877,14 +880,18 @@ $('fCodeSel').addEventListener('change', onCodeSelChange);
 $('fCode').addEventListener('input', buildChips);
 $('fReasonSel').addEventListener('change', onReasonSelChange);
 $('fReason').addEventListener('input', buildChips);
-// สินค้าชั่งน้ำหนัก — น้ำหนักที่โชว์ต้องคูณตามจำนวนที่กรอกด้วย (สแกนบาร์โค้ดเดียวแต่ปรับจำนวนหลายชิ้น
-// ของน้ำหนักเท่ากันทุกชิ้น เช่น -2 ชิ้น ก็ควรเห็นน้ำหนักรวม ไม่ใช่แค่น้ำหนักชิ้นเดียว)
 function updateWeightDisplay(){
   if(!S.baseWeightKg) return;
-  const qty = Math.abs(Number(S.mode==='RTC' ? $('fRQty').value : $('fQty').value)) || 1;
-  $('shWeight').textContent = 'น้ำหนัก '+(S.baseWeightKg*qty).toFixed(3)+' กก.'+(qty>1?(' (x'+qty+')'):'');
+  if(S.mode==='RTC'){
+    // RTC: จำนวนคือจำนวนชิ้น/แพ็คที่ลดราคา แต่ละชิ้นน้ำหนักเท่ากัน -> โชว์น้ำหนักรวม
+    const qty = Math.abs(Number($('fRQty').value)) || 1;
+    $('shWeight').textContent = 'น้ำหนัก '+(S.baseWeightKg*qty).toFixed(3)+' กก.'+(qty>1?(' (x'+qty+')'):'');
+  }else{
+    // ADJ: ช่อง "จำนวนชิ้น" ของสินค้าชั่งน้ำหนักใช้เป็นหน่วยกิโลกรัมโดยตรงอยู่แล้ว (ดู onCodeSelChange)
+    // ไม่ใช่ตัวคูณ จึงโชว์แค่น้ำหนักต่อชิ้นจากบาร์โค้ดตรงๆ
+    $('shWeight').textContent = 'น้ำหนัก '+S.baseWeightKg.toFixed(3)+' กก.';
+  }
 }
-$('fQty').addEventListener('input', updateWeightDisplay);
 $('fRQty').addEventListener('input', updateWeightDisplay);
 
 function openSheet(bc, editIdx, weightKg){
