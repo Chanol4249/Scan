@@ -927,6 +927,15 @@ function saveItem(){
     const newUnit=S.mode==='RTC'?o.unit:undefined;
     S.master[bc]=Object.assign({name}, newPrice?{price:newPrice}:{}, newUnit?{unit:newUnit}:{});
     queueProduct(bc,name,newPrice,newUnit);
+  }else if(S.mode==='RTC' && S.edit==null){
+    // สินค้ามีอยู่ใน master แล้ว แต่ราคาที่กรอกตอนสแกนครั้งนี้ไม่ตรงกับราคาเดิม (ราคาสินค้าเปลี่ยน)
+    // -> อัปเดตฐานข้อมูลกลางด้วยราคาล่าสุดทันที ครั้งต่อไปสแกนจะได้ราคาที่ถูกต้อง ไม่ต้องพิมพ์ซ้ำทุกครั้ง
+    const unitPrice = S.pendingWeightKg ? Math.round((o.price/S.pendingWeightKg)*100)/100 : o.price;
+    const unitChanged = o.unit && o.unit!==m.unit;
+    if(Math.abs((m.price||0)-unitPrice)>0.001 || unitChanged){
+      S.master[bc]=Object.assign({}, m, {price:unitPrice}, o.unit?{unit:o.unit}:{});
+      queueProduct(bc,name,unitPrice,o.unit);
+    }
   }
   persist();
   saveDraft();
