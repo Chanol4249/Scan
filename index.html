@@ -970,8 +970,12 @@ function saveItem(){
   }
   if(S.edit!=null){
     S.items[S.mode][S.edit]=o;
+  }else if(S.mode==='RTC'){
+    // RTC ห้ามรวมรายการที่บาร์โค้ดซ้ำกันอัตโนมัติ — แต่ละครั้งที่ยิงเข้ามาราคา/น้ำหนัก/วันหมดอายุ
+    // อาจไม่เหมือนกัน (เช่นสินค้าชั่งน้ำหนักคนละถุง) ต้องแยกเป็นคนละแถวเสมอ
+    S.items[S.mode].push(o);
   }else{
-    // สแกนบาร์โค้ดเดิมซ้ำในเอกสารเดียวกัน -> รวมจำนวนไว้ในรายการเดิม ไม่สร้างแถวใหม่
+    // ADJ: สแกนบาร์โค้ดเดิมซ้ำในเอกสารเดียวกัน -> รวมจำนวนไว้ในรายการเดิม ไม่สร้างแถวใหม่
     const dupIdx=S.items[S.mode].findIndex(x=>x.bc===bc);
     if(dupIdx>=0){
       S.items[S.mode][dupIdx].qty=Number(S.items[S.mode][dupIdx].qty)+Number(o.qty);
