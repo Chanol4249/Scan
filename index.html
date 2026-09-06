@@ -276,6 +276,7 @@ button.mode-tile:focus-visible{outline:3px solid rgba(22,155,117,.24);outline-of
   <div class="card" style="padding:14px">
     <div id="reader"></div>
     <div class="scanhint" id="scanHint">กำลังเปิดกล้อง…</div>
+    <div class="scanhint" id="scanTip" style="font-size:12px; margin-top:-6px">ถือบาร์โค้ดห่างกล้องประมาณ 15–25 ซม. และให้อยู่ในกรอบ</div>
     <div class="btnrow">
       <button class="btn sec" onclick="manualEntry()">พิมพ์บาร์โค้ดเอง</button>
       <button class="btn ghost" onclick="toggleCam()" id="camBtn">ปิดกล้อง</button>
@@ -401,7 +402,7 @@ const PCTS = [20,25,30,50,75];
 
 const S = { mode:null, view:'home', master:{}, items:{ADJ:[], RTC:[]},
   edit:null, pending:null, scanner:null, camOn:false, lastScan:{code:'',t:0}, ready:false,
-  employee:null, docId:null, locked:false, online:false, defaultAdjCode:'' };
+  employee:null, docId:null, locked:false, online:false, defaultAdjCode:'', lastDecodeAt:0, stallTimer:null };
 
 // iOS Safari ไม่ apply :active pseudo-class ตอนแตะ (tap) ถ้าไม่มี touch listener ผูกไว้ในหน้า —
 // listener เปล่านี้ทำให้ animation กดปุ่ม (:active) ที่ตั้งไว้ใน CSS ทำงานจริงบนมือถือ iPhone
@@ -787,29 +788,47 @@ async function startCam(){
       Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
       Html5QrcodeSupportedFormats.ITF], verbose:false });
     await S.scanner.start({facingMode:'environment'},
-      {fps:12, qrbox:{width:260,height:150}, aspectRatio:1.4,
+      {fps:12,
+       // กรอบสแกนเป็นสัดส่วนของพื้นที่ภาพจริง (~78%) แทนพิกเซลตายตัว จะได้พอดีกับทุกขนาดจอ/สัดส่วนกล้อง
+       // และไม่ต้องถอดรหัสทั้งภาพ ช่วยลดภาระ decoder + จับบาร์โค้ดได้เร็วขึ้น
+       qrbox:function(viewfinderWidth, viewfinderHeight){
+         const w = Math.max(50, Math.floor(Math.min(viewfinderWidth, viewfinderHeight*260/150) * 0.78));
+         return { width: w, height: Math.max(50, Math.floor(w*150/260)) };
+       },
+       aspectRatio:1.4,
        videoConstraints:{facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080}}},
       onScan, ()=>{});
     S.camOn=true; $('camBtn').textContent='ปิดกล้อง';
     $('scanHint').textContent='เล็งบาร์โค้ดให้อยู่ในกรอบ';
     // เปิดโหมดโฟกัสต่อเนื่อง (ถ้ากล้องเครื่องนั้นรองรับ) ช่วยให้อ่านบาร์โค้ดชัดขึ้นตอนขยับมือถือเข้า-ออก
-    // ไม่ทุกอุปกรณ์/เบราว์เซอร์รองรับ ถ้าไม่รองรับก็ข้ามไปเงียบๆ ไม่ให้กระทบการสแกนปกติ
+    // ไม่ทุกอุปกรณ์/เบราว์เซอร์รองรับ (เช่น iPhone Safari ยังไม่รองรับ focusMode ผ่าน web API เลย)
+    // ถ้าไม่รองรับก็ข้ามไปเงียบๆ ใช้ autofocus ปกติของเบราว์เซอร์/ระบบต่อ ไม่ให้กระทบการสแกนปกติ
     try{
       const caps = S.scanner.getRunningTrackCapabilities?.();
       if(caps?.focusMode?.includes('continuous')){
         await S.scanner.applyVideoConstraints({advanced:[{focusMode:'continuous'}]});
       }
     }catch(e){}
+    // ถ้าไม่มีการสแกนติดต่อกันนานเกินไป (~6 วิ) ขึ้นคำแนะนำให้ขยับระยะ — ไม่ปิดกล้อง ปุ่มพิมพ์เองยังใช้ได้ปกติ
+    S.lastDecodeAt = Date.now();
+    clearInterval(S.stallTimer);
+    S.stallTimer = setInterval(()=>{
+      if(!S.camOn){ clearInterval(S.stallTimer); return; }
+      $('scanHint').textContent = (Date.now()-S.lastDecodeAt>6000)
+        ? 'ยังไม่พบบาร์โค้ด — ลองขยับบาร์โค้ดออกจากกล้องเล็กน้อย'
+        : 'เล็งบาร์โค้ดให้อยู่ในกรอบ';
+    }, 1000);
   }catch(e){
     console.error(e);
     $('scanHint').textContent='เปิดกล้องไม่ได้ — ใช้ปุ่มพิมพ์บาร์โค้ดเองได้เลย';
   }
 }
 async function stopCam(){ if(S.scanner&&S.camOn){ try{ await S.scanner.stop(); }catch(e){} }
-  S.camOn=false; if($('camBtn')) $('camBtn').textContent='เปิดกล้อง'; }
+  S.camOn=false; clearInterval(S.stallTimer); if($('camBtn')) $('camBtn').textContent='เปิดกล้อง'; }
 function toggleCam(){ S.camOn?stopCam():startCam(); }
 function onScan(txt){
   const now=Date.now();
+  S.lastDecodeAt = now;
   if(txt===S.lastScan.code && now-S.lastScan.t<2000) return;
   S.lastScan={code:txt,t:now};
   if(navigator.vibrate) navigator.vibrate(45);
