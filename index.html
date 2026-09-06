@@ -315,6 +315,7 @@ button.mode-tile:focus-visible{outline:3px solid rgba(22,155,117,.24);outline-of
       <div class="nm" id="shName">—</div>
       <div class="bc" id="shBc"></div>
       <div class="bc" id="shWeight" style="display:none"></div>
+      <div class="bc" id="shUnitPrice" style="display:none"></div>
     </div>
     <div class="field" id="wrapManualName" style="display:none">
       <label class="fld">ชื่อสินค้า (ไม่พบในรายการ — พิมพ์เอง)</label>
@@ -837,6 +838,13 @@ function toggleQtySign(){
 function calcPrice(){
   const p=Number($('fPrice').value), pct=Number($('fPct').value);
   $('shCalc').textContent = (p>0&&pct>0) ? roundUpPrice(p,pct/100).toLocaleString()+' ฿' : '—';
+  // สินค้าชั่งน้ำหนัก — โชว์ราคาต่อกก. คู่กับน้ำหนัก จะได้เทียบกับป้ายราคาจริงได้ตรงๆ
+  if(S.pendingWeightKg && p>0){
+    $('shUnitPrice').textContent = 'ราคาต่อกก. '+(Math.round((p/S.pendingWeightKg)*100)/100).toLocaleString()+' บาท';
+    $('shUnitPrice').style.display='block';
+  }else{
+    $('shUnitPrice').style.display='none';
+  }
 }
 $('fPrice').addEventListener('input', calcPrice);
 $('fPct').addEventListener('input', ()=>{ buildChips(); calcPrice(); });
@@ -851,6 +859,8 @@ function openSheet(bc, editIdx, weightKg){
   const it = S.edit!=null ? S.items[S.mode][S.edit] : null;
   const code = bc || (it&&it.bc) || '';
   const m = S.master[code];
+  // ต้องตั้งก่อนเรียก calcPrice() ด้านล่าง เพราะใช้คำนวณราคาต่อกก. ให้โชว์ทันทีตอนเปิดชีท
+  S.pendingWeightKg = (S.edit==null) ? (weightKg || null) : null;
   $('shTitle').textContent = S.edit!=null?'แก้ไขรายการ':'เพิ่มรายการ';
   $('shBc').textContent = code;
   // แสดงน้ำหนักที่ถอดจากบาร์โค้ดให้เห็นด้วย (เฉพาะสินค้าชั่งน้ำหนัก) จะได้เช็คกับป้ายจริงได้ทันที
@@ -879,10 +889,6 @@ function openSheet(bc, editIdx, weightKg){
   }
   buildChips(); calcPrice();
   S.pending=code;
-  // เก็บน้ำหนักไว้ใช้ตอนบันทึก — ถ้าสินค้าชั่งน้ำหนักยังไม่เคยมีใน master ราคาที่กรอกจะเป็นราคารวม
-  // ของถุงนี้เท่านั้น (ไม่ใช่ราคาต่อกก.) ต้องหารน้ำหนักออกก่อนเก็บเป็นราคากลาง ไม่งั้นสแกนถุงอื่นน้ำหนัก
-  // ต่างกันครั้งต่อไปจะได้ราคาผิด (เอาราคารวมของถุงแรกไปคูณน้ำหนักถุงใหม่)
-  S.pendingWeightKg = (S.edit==null) ? (weightKg || null) : null;
   $('sheet').classList.add('show');
 }
 function closeSheet(){ $('sheet').classList.remove('show'); S.pending=null; S.edit=null; S.pendingWeightKg=null;
