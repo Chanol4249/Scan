@@ -87,8 +87,18 @@ hr.d{border:none; border-top:1px solid var(--divider); margin:16px 0}
   </div>
 
   <section id="viewDocs">
-    <div class="field">
-      <input id="searchEmp" placeholder="ค้นหาชื่อหรือรหัสพนักงาน…" oninput="renderDocs()">
+    <div class="row2">
+      <div class="field">
+        <input id="searchEmp" placeholder="ค้นหาชื่อหรือรหัสพนักงาน…" oninput="renderDocs()">
+      </div>
+      <div class="field">
+        <select id="filterMode" onchange="renderDocs()">
+          <option value="">ทุกประเภทเอกสาร</option>
+          <option value="ADJ">ADJ — ใบแก้ไขรายการ</option>
+          <option value="RTC">RTC — ฟอร์มลดราคา</option>
+          <option value="TRACK">Tracking Receipt Recording</option>
+        </select>
+      </div>
     </div>
     <div class="card">
       <table>
@@ -136,7 +146,7 @@ hr.d{border:none; border-top:1px solid var(--divider); margin:16px 0}
     <h2 id="modalTitle">เอกสาร</h2>
     <div class="row2">
       <div class="field"><label class="fld">สาขา</label><input id="mBranch"></div>
-      <div class="field"><label class="fld">แผนก</label><input id="mDept"></div>
+      <div class="field" id="mDeptWrap"><label class="fld">แผนก</label><input id="mDept"></div>
     </div>
     <table>
       <thead id="modalHead"></thead>
@@ -159,7 +169,7 @@ hr.d{border:none; border-top:1px solid var(--divider); margin:16px 0}
 <script src="vendor/exceljs.min.js"></script>
 <script src="cf-config.js?v=20260905-1200"></script>
 <script src="js/cfdb.js?v=20260907-0723"></script>
-<script src="js/export.js?v=20260905-2000"></script>
+<script src="js/export.js?v=20260907-1031"></script>
 <script>
 const $ = id => document.getElementById(id);
 function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show');
@@ -201,10 +211,12 @@ async function loadDocs(){
 }
 function renderDocs(){
   const q = ($('searchEmp').value||'').trim().toLowerCase();
-  const rows = !q ? D.docs : D.docs.filter(d=>
+  const modeFilter = $('filterMode').value;
+  let rows = !q ? D.docs : D.docs.filter(d=>
     String(d.employeeName||'').toLowerCase().includes(q) || String(d.employeeCode||'').toLowerCase().includes(q));
+  if(modeFilter) rows = rows.filter(d=>d.mode===modeFilter);
   if(!rows.length){ $('docsBody').innerHTML=''; $('docsEmpty').style.display='block';
-    $('docsEmpty').textContent = q ? 'ไม่พบเอกสารของพนักงานนี้' : 'ยังไม่มีเอกสาร'; return; }
+    $('docsEmpty').textContent = (q||modeFilter) ? 'ไม่พบเอกสารตามเงื่อนไขที่เลือก' : 'ยังไม่มีเอกสาร'; return; }
   $('docsEmpty').style.display='none';
   $('docsBody').innerHTML = rows.map(d=>
     '<tr class="row" onclick="openDoc(\''+d._id+'\')">'+
@@ -225,8 +237,12 @@ function openDoc(id){
   D.modalDoc.items = D.modalDoc.items || [];
   $('modalTitle').textContent = id+' — '+STATUS_LABEL[d.status];
   $('mBranch').value = d.branch||''; $('mDept').value = d.dept||'';
+  $('mDeptWrap').style.display = D.modalDoc.mode==='TRACK' ? 'none' : 'block';
   const isRTC = D.modalDoc.mode==='RTC';
-  $('modalHead').innerHTML = isRTC
+  const isTrack = D.modalDoc.mode==='TRACK';
+  $('modalHead').innerHTML = isTrack
+    ? '<tr><th>PO No.</th><th>Supplier No.</th><th>Supplier Name</th><th>วันที่บันทึกรับสินค้า</th><th>Confirm</th><th>หมายเหตุ</th><th></th></tr>'
+    : isRTC
     ? '<tr><th>บาร์โค้ด</th><th>สินค้า</th><th>หน่วย</th><th>ราคา</th><th>%</th><th>จำนวน</th><th>ราคาใหม่</th><th></th></tr>'
     : '<tr><th>บาร์โค้ด</th><th>สินค้า</th><th>Code</th><th>จำนวน</th><th>เหตุผล</th><th></th></tr>';
   renderModalItems();
@@ -246,7 +262,18 @@ function calcNewPrice(price, pct){
 function renderModalItems(){
   const items = D.modalDoc.items||[];
   const isRTC = D.modalDoc.mode==='RTC';
-  $('modalBody').innerHTML = items.map((it,i)=> isRTC
+  const isTrack = D.modalDoc.mode==='TRACK';
+  $('modalBody').innerHTML = items.map((it,i)=> isTrack
+    ? '<tr><td><input class="cellIn" value="'+esc(it.po||'')+'" onchange="editModalItem('+i+',\'po\',this.value)"></td>'+
+      '<td><input class="cellIn" value="'+esc(it.supNo||'')+'" onchange="editModalItem('+i+',\'supNo\',this.value)"></td>'+
+      '<td><input class="cellIn" value="'+esc(it.supName||'')+'" onchange="editModalItem('+i+',\'supName\',this.value)"></td>'+
+      '<td><input class="cellIn" type="date" value="'+esc(it.recvDateIso||'')+'" onchange="editModalItem('+i+',\'recvDateIso\',this.value)"></td>'+
+      '<td><select class="cellIn" onchange="editModalItem('+i+',\'confirm\',this.value)">'+
+        '<option value="done"'+(it.confirm==='done'?' selected':'')+'>บันทึกรับเรียบร้อย</option>'+
+        '<option value="pending"'+(it.confirm==='pending'?' selected':'')+'>ยังไม่ได้ดำเนินการ</option></select></td>'+
+      '<td><input class="cellIn" value="'+esc(it.remark||'')+'" onchange="editModalItem('+i+',\'remark\',this.value)"></td>'+
+      '<td><button class="btn danger" onclick="delModalItem('+i+')">ลบ</button></td></tr>'
+    : isRTC
     ? '<tr><td class="bcCell">'+esc(it.bc)+'</td>'+
       '<td><input class="cellIn" value="'+esc(it.name)+'" onchange="editModalItem('+i+',\'name\',this.value)"></td>'+
       '<td><input class="cellIn" value="'+esc(it.unit||'')+'" onchange="editModalItem('+i+',\'unit\',this.value)"></td>'+

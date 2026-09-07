@@ -19,10 +19,23 @@ var EXPORT_CFG = {
   RTC: { sheetName: 'From', first: 9, last: 28, hdrBranch: 'A4', hdrDate: 'A5',
          cols: { no: 'A', bc: 'B', name: 'C', unit: 'D', price: 'E', pct: 'F', qty: 'G',
                  newPrice: 'H', left: 'I', dateC25: 'J', exp: 'K' },
-         templateUrl: 'templates/RTC_template.xlsx?v=20260905-2000' }
+         templateUrl: 'templates/RTC_template.xlsx?v=20260905-2000' },
+  // ฟอร์ม "Daily Running Number Report" (ติดตามบันทึกรับสินค้าตาม PO/Supplier) — ไม่มีสูตร,
+  // ไม่มีบาร์โค้ด, กรอกมือล้วน คนละชุดคอลัมน์กับ ADJ/RTC โดยสิ้นเชิง
+  TRACK: { sheetName: 'TrackingForm', first: 10, last: 34, hdrBranch: 'A6', hdrDate: 'A5',
+           cols: { no: 'A', runNo: 'B', po: 'C', supNo: 'D', supName: 'E', recvDate: 'F',
+                   confirmDone: 'G', confirmPending: 'H', remark: 'I' },
+           templateUrl: 'templates/TRACK_template.xlsx?v=20260907-1031' }
 };
 
 function exportThDate(iso) { if (!iso) return ''; const p = iso.split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
+// Running No. รูปแบบ YYMMDDNNNN ตามหัวตาราง ("Running No.") ของฟอร์ม Tracking — ปีย่อ 2 หลัก+เดือน+วัน
+// ของเอกสาร ต่อด้วยลำดับรายการ 4 หลัก (เริ่ม 0000) ให้ตรงกับตราปั๊มเลขจริงที่ร้านใช้
+function exportTrackRunningNo(dateIso, idx0) {
+  const p = String(dateIso || '').split('-');
+  if (p.length !== 3) return '';
+  return p[0].slice(-2) + p[1] + p[2] + String(idx0).padStart(4, '0');
+}
 // ตัดอักขระที่ใช้เป็นชื่อไฟล์ไม่ได้ (Windows/macOS ต้องห้าม \/:*?"<>| และช่องว่างต้นท้าย)
 function exportSanitizeFilename(s) {
   return String(s || '').trim().replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, '');
@@ -112,9 +125,15 @@ window.buildExportXlsx = async function (mode, items, meta, page) {
 
   const branch = (meta.branch || '').trim(), dept = (meta.dept || '').trim();
   const d = meta.date ? exportThDate(meta.date) : '';
-  ws.getCell(cfg.hdrBranch).value = 'สาขา ' + (branch || '.......................') +
-    '     แผนก ' + (dept || '.......................');
-  ws.getCell(cfg.hdrDate).value = 'วันที่ ' + (d || '.......................');
+  if (mode === 'TRACK') {
+    // ฟอร์มนี้ไม่มีช่อง "แผนก" ในหัวเอกสาร ต่างจาก ADJ/RTC
+    ws.getCell(cfg.hdrBranch).value = 'สาขา ' + (branch || '.......................');
+    ws.getCell(cfg.hdrDate).value = 'วันที่ ' + (d || '.......................');
+  } else {
+    ws.getCell(cfg.hdrBranch).value = 'สาขา ' + (branch || '.......................') +
+      '     แผนก ' + (dept || '.......................');
+    ws.getCell(cfg.hdrDate).value = 'วันที่ ' + (d || '.......................');
+  }
 
   const C = cfg.cols;
   for (let i = 0; i < cap; i++) {
@@ -127,6 +146,19 @@ window.buildExportXlsx = async function (mode, items, meta, page) {
       continue;
     }
     ws.getCell(C.no + r).value = page * cap + i + 1;
+    if (mode === 'TRACK') {
+      const runNoCell = ws.getCell(C.runNo + r);
+      runNoCell.value = exportTrackRunningNo(meta.date, page * cap + i);
+      exportSetNumFmt(runNoCell, '@'); // เก็บเป็นข้อความ กันเลข 0 นำหน้าหาย
+      ws.getCell(C.po + r).value = it.po;
+      ws.getCell(C.supNo + r).value = it.supNo;
+      ws.getCell(C.supName + r).value = it.supName;
+      exportSetDateCell(ws.getCell(C.recvDate + r), it.recvDateIso);
+      ws.getCell(C.confirmDone + r).value = it.confirm === 'done' ? '✓' : null;
+      ws.getCell(C.confirmPending + r).value = it.confirm === 'pending' ? '✓' : null;
+      ws.getCell(C.remark + r).value = it.remark;
+      continue;
+    }
     // Barcode เป็นรหัสประจำสินค้า ไม่ใช่ตัวเลขคำนวณ ต้องเก็บเป็นข้อความ + ตั้ง number format
     // เป็น Text (@) เพื่อรักษาเลข 0 นำหน้า และกัน Excel ปัดค่าบาร์โค้ดยาวเป็น scientific notation
     const bcCell = ws.getCell(C.bc + r);
