@@ -30,11 +30,11 @@ var EXPORT_CFG = {
 
 function exportThDate(iso) { if (!iso) return ''; const p = iso.split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
 // Running No. รูปแบบ YYMMDDNNNN ตามหัวตาราง ("Running No.") ของฟอร์ม Tracking — ปีย่อ 2 หลัก+เดือน+วัน
-// ของเอกสาร ต่อด้วยลำดับรายการ 4 หลัก (เริ่ม 0000) ให้ตรงกับตราปั๊มเลขจริงที่ร้านใช้
-function exportTrackRunningNo(dateIso, idx0) {
+// ของเอกสาร ต่อด้วยลำดับรายการ 4 หลัก เริ่มที่ 0001 (รายการแรก) ให้ตรงกับตราปั๊มเลขจริงที่ร้านใช้
+function exportTrackRunningNo(dateIso, seq1) {
   const p = String(dateIso || '').split('-');
   if (p.length !== 3) return '';
-  return p[0].slice(-2) + p[1] + p[2] + String(idx0).padStart(4, '0');
+  return p[0].slice(-2) + p[1] + p[2] + String(seq1).padStart(4, '0');
 }
 // ตัดอักขระที่ใช้เป็นชื่อไฟล์ไม่ได้ (Windows/macOS ต้องห้าม \/:*?"<>| และช่องว่างต้นท้าย)
 function exportSanitizeFilename(s) {
@@ -148,7 +148,7 @@ window.buildExportXlsx = async function (mode, items, meta, page) {
     ws.getCell(C.no + r).value = page * cap + i + 1;
     if (mode === 'TRACK') {
       const runNoCell = ws.getCell(C.runNo + r);
-      runNoCell.value = exportTrackRunningNo(meta.date, page * cap + i);
+      runNoCell.value = exportTrackRunningNo(meta.date, page * cap + i + 1);
       exportSetNumFmt(runNoCell, '@'); // เก็บเป็นข้อความ กันเลข 0 นำหน้าหาย
       ws.getCell(C.po + r).value = it.po;
       ws.getCell(C.supNo + r).value = it.supNo;
