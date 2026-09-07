@@ -401,7 +401,10 @@ button.mode-tile:focus-visible{outline:3px solid rgba(22,155,117,.24);outline-of
       </div>
       <div class="field">
         <label class="fld">Confirm การดำเนินการ</label>
-        <div class="chips" id="confirmChips"></div>
+        <div class="row2">
+          <button type="button" class="btn ghost" id="btnConfirmDone" onclick="setConfirm('done')" style="height:auto; min-height:52px; padding:10px 6px; font-size:13.5px; white-space:normal; line-height:1.3">✓ บันทึกรับเรียบร้อย</button>
+          <button type="button" class="btn ghost" id="btnConfirmPending" onclick="setConfirm('pending')" style="height:auto; min-height:52px; padding:10px 6px; font-size:13.5px; white-space:normal; line-height:1.3">ยังไม่ได้ดำเนินการ</button>
+        </div>
         <input id="fConfirm" type="hidden">
       </div>
       <div class="field">
@@ -977,15 +980,14 @@ function updateWeightDisplay(){
 }
 $('fRQty').addEventListener('input', updateWeightDisplay);
 
-// สองตัวเลือกสถานะของฟอร์ม Tracking Receipt Recording ตรงตามหัวคอลัมน์ G/H ในต้นฉบับ
-const TRACK_CONFIRM_OPTS = [
-  {v:'done', t:'บันทึกรับเรียบร้อย'},
-  {v:'pending', t:'ยังไม่ได้ดำเนินการ'}
-];
-function buildConfirmChips(){
-  const cur=$('fConfirm').value, box=$('confirmChips'); box.innerHTML='';
-  TRACK_CONFIRM_OPTS.forEach(o=>box.appendChild(chip(o.t, cur===o.v, ()=>{
-    $('fConfirm').value=o.v; buildConfirmChips(); }, true)));
+// สองตัวเลือกสถานะของฟอร์ม Tracking Receipt Recording ตรงตามหัวคอลัมน์ G/H ในต้นฉบับ —
+// ใช้ปุ่มเต็มขนาดแทน chip เล็กๆ เพราะเป็นตัวเลือกหลักของฟอร์มนี้ (มีแค่ 2 ทาง) ต้องเห็นชัด แตะง่าย
+function setConfirm(v){ $('fConfirm').value=v; updateConfirmButtons(); }
+function updateConfirmButtons(){
+  const v=$('fConfirm').value;
+  const done=$('btnConfirmDone'), pending=$('btnConfirmPending');
+  done.className = 'btn'+(v==='done'?' teal':' ghost');
+  pending.className = 'btn'+(v==='pending'?' danger':' ghost');
 }
 function openSheet(bc, editIdx, weightKg){
   S.edit = (editIdx==null)?null:editIdx;
@@ -1019,7 +1021,7 @@ function openSheet(bc, editIdx, weightKg){
     $('fRecvDate').value = (it&&it.recvDateIso)||'';
     $('fConfirm').value = (it&&it.confirm)||'';
     $('fTrackRemark').value = (it&&it.remark)||'';
-    buildConfirmChips();
+    updateConfirmButtons();
   }else if(isRTC){
     $('fUnit').value=(it&&it.unit)||(m&&m.unit)||'ชิ้น';
     // ของใหม่ (ไม่ใช่แก้รายการเดิม) ที่เป็นสินค้าชั่งน้ำหนัก — เอาน้ำหนักจากบาร์โค้ดคูณราคาต่อหน่วยใน
