@@ -213,94 +213,60 @@ function exportTagPerUnit(unitPrice, pct) {
   if (!unitPrice || !pct) return null;
   return Math.floor(Number((unitPrice - unitPrice * pct).toFixed(6)) * 4) / 4;
 }
-// แปลง ซม. -> point (หน่วยความสูงแถวของ Excel: 1 นิ้ว = 72pt) และ -> หน่วยความกว้างคอลัมน์ของ Excel
-// (หน่วย "จำนวนตัวอักษร" อิงความกว้างเลขของฟอนต์ Calibri 11 ที่ Excel ใช้คำนวณเวลาแสดง/พิมพ์คอลัมน์)
-// เป็นค่าประมาณมาตรฐานที่ใช้กันทั่วไปสำหรับงานพิมพ์ป้าย — ควรพิมพ์ทดสอบ 1 แผ่นทาบกับสติกเกอร์จริงก่อน
-// พิมพ์เต็มชุดเสมอ เพราะความกว้างจริงขึ้นกับไดรเวอร์เครื่องพิมพ์เล็กน้อย ปรับ TAG_W_CM/TAG_H_CM ด้านล่าง
-// แล้วลองพิมพ์ใหม่ได้ถ้าคลาดเคลื่อน
-function exportCmToPoints(cm) { return cm * 72 / 2.54; }
-function exportCmToColWidth(cm) { return Math.max(1, (cm / 2.54 * 96 - 5) / 7); }
+function exportEscHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
 /*
- * สร้างไฟล์ Excel จริง (ไม่ใช่หน้า HTML) สำหรับพิมพ์ป้ายราคาลดราคา (เฉพาะ RTC) ลงกระดาษสติกเกอร์ขนาดจริง
- * ดวงละ 5 x 4 ซม. เรียง 4 ดวง/แถว 7 แถว/หน้า = 28 ดวง/หน้า A4 — เกิน 28 ดวงขึ้นหน้าถัดไปในชีทเดียวกัน
- * (ใส่ page break ไม่ใช่แยกชีท) แต่ละดวงกินพื้นที่ 1 คอลัมน์ x 3 แถวย่อย: บนซ้ายเล็ก = ราคาต่อหน่วยหลังลด
- * (ถ้ามี), กลาง = ชื่อสินค้า+ราคาสุทธิตัวใหญ่, ล่างเล็ก = เลขบาร์โค้ด (ตัวหนังสือธรรมดา ไม่ใช่กราฟิก — ของจริง
- * แคชเชียร์สแกนจากบาร์โค้ดเดิมบนสินค้าอยู่แล้ว) แต่ละรายการพิมพ์ซ้ำตามจำนวนชิ้น (qty)
+ * สร้างหน้า HTML สำหรับพิมพ์ป้ายราคาลดราคา (เฉพาะ RTC) แล้วสั่งพิมพ์/บันทึกเป็น PDF ผ่าน print dialog
+ * ของเบราว์เซอร์เอง (ไม่มีไลบรารีสร้างไฟล์ .pdf ในเครื่อง — วิธีนี้ได้ PDF จริง เลือกได้ทั้งพิมพ์กระดาษ/
+ * Save as PDF โดยไม่ต้องพึ่ง dependency เพิ่ม) ป้ายขนาดจริงดวงละ 5 x 4 ซม. ใช้ CSS Grid บังคับ 4 คอลัมน์
+ * แน่นอน (ไม่ใช่ flex-wrap ที่ปัดจำนวนต่อแถวไม่แน่นอนตามพื้นที่ว่างเหลือ) และตัดหน้าทุก 28 ดวง (7 แถว)
+ * ด้วย page-break-after ให้ตรง 1 หน้า A4 พอดีเสมอ ไม่ว่าจะมีกี่ดวงก็ตาม
+ * แต่ละดวง: บนซ้ายเล็ก = ราคาต่อกก.หลังลดราคา (ถ้ามี — หน่วยคงที่เป็น "กก." เสมอ เพราะเป็นราคาอ้างอิงต่อ
+ * กิโลกรัมของสินค้าในฐานข้อมูลกลาง ไม่ใช่หน่วยขาย เช่น "ตัว"/"แพ็ค" ที่โชว์แยกอยู่แล้วในชื่อ), กลาง = ชื่อ
+ * สินค้า+ราคาสุทธิตัวใหญ่, ล่างเล็ก = เลขบาร์โค้ด (ตัวหนังสือธรรมดา ไม่ใช่กราฟิก — ของจริงแคชเชียร์สแกนจาก
+ * บาร์โค้ดเดิมบนสินค้าอยู่แล้ว) แต่ละรายการพิมพ์ซ้ำตามจำนวนชิ้น (qty)
  */
-window.buildPriceTagsXlsx = async function (items, docId) {
-  const TAG_W_CM = 5, TAG_H_CM = 4, COLS = 4, ROWS_PER_PAGE = 7;
-  const SUBROW_TOP_PT = 17, SUBROW_BOTTOM_PT = 20;
-  const SUBROW_MID_PT = exportCmToPoints(TAG_H_CM) - SUBROW_TOP_PT - SUBROW_BOTTOM_PT;
-  const colWidth = exportCmToColWidth(TAG_W_CM);
-  const rowsPerTag = 3;
-
+window.buildPriceTagsHtml = function (items) {
+  const PER_PAGE = 28; // 4 ดวง/แถว x 7 แถว/หน้า
   const tags = [];
   (items || []).forEach(function (it) {
     const qty = Math.max(1, Number(it.qty) || 1);
-    const perUnit = exportTagPerUnit(it.unitPrice, it.pct);
-    const unitLabel = (String(it.unit || '').trim()) || 'กก.';
+    const perKg = exportTagPerUnit(it.unitPrice, it.pct);
     const net = exportTagNewPrice(it.price, it.pct);
-    const tag = { perUnitText: perUnit != null ? (perUnit.toLocaleString() + ' บ./' + unitLabel) : '', name: it.name || '', net: net, bc: it.bc || '' };
-    for (let i = 0; i < qty; i++) tags.push(tag);
+    const tagHtml = '<div class="tag">' +
+      (perKg != null ? '<div class="perkg">' + perKg.toLocaleString() + ' บ./กก.</div>' : '<div class="perkg">&nbsp;</div>') +
+      '<div class="mid"><div class="nm">' + exportEscHtml(it.name) + '</div>' +
+      '<div class="net">' + net.toLocaleString() + ' ฿</div></div>' +
+      '<div class="bc">' + exportEscHtml(it.bc) + '</div>' +
+      '</div>';
+    for (let i = 0; i < qty; i++) tags.push(tagHtml);
   });
 
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet('ป้ายราคา');
-  ws.pageSetup = {
-    paperSize: 9, orientation: 'portrait', // 9 = A4
-    margins: { left: 0.2, right: 0.2, top: 0.2, bottom: 0.2, header: 0, footer: 0 },
-    horizontalCentered: true
-  };
-  for (let c = 1; c <= COLS; c++) ws.getColumn(c).width = colWidth;
+  const pages = [];
+  for (let i = 0; i < tags.length; i += PER_PAGE) pages.push(tags.slice(i, i + PER_PAGE));
+  const pagesHtml = pages.map(function (pageTags, idx) {
+    const brk = idx < pages.length - 1 ? ' style="break-after:page;page-break-after:always"' : '';
+    return '<div class="sheet"' + brk + '>' + pageTags.join('') + '</div>';
+  }).join('');
 
-  const thin = { style: 'thin', color: { argb: 'FFAAAAAA' } };
-  tags.forEach(function (tag, idx) {
-    const col = (idx % COLS) + 1;
-    const tagRow = Math.floor(idx / COLS); // ลำดับแถวป้าย ต่อเนื่องทั้งชีท ไม่รีเซ็ตข้ามหน้า
-    const baseRow = tagRow * rowsPerTag + 1;
-
-    ws.getRow(baseRow).height = SUBROW_TOP_PT;
-    ws.getRow(baseRow + 1).height = SUBROW_MID_PT;
-    ws.getRow(baseRow + 2).height = SUBROW_BOTTOM_PT;
-
-    const topCell = ws.getCell(baseRow, col);
-    topCell.value = tag.perUnitText;
-    topCell.font = { size: 7, color: { argb: 'FF555555' } };
-    topCell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
-
-    const midCell = ws.getCell(baseRow + 1, col);
-    midCell.value = { richText: [
-      { font: { size: 9, bold: true }, text: tag.name + '\n' },
-      { font: { size: 16, bold: true }, text: tag.net.toLocaleString() + ' ฿' }
-    ] };
-    midCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-
-    const bcCell = ws.getCell(baseRow + 2, col);
-    bcCell.value = tag.bc;
-    bcCell.font = { size: 7, color: { argb: 'FF555555' } };
-    bcCell.alignment = { horizontal: 'center', vertical: 'bottom' };
-
-    // ขอบป้าย (ครอบทั้ง 3 แถวย่อยของดวงนี้เป็นกรอบเดียว) ให้เห็นแนวตัดชัดตอนพิมพ์
-    [baseRow, baseRow + 1, baseRow + 2].forEach(function (r) {
-      ws.getCell(r, col).border = {
-        top: r === baseRow ? thin : undefined,
-        bottom: r === baseRow + 2 ? thin : undefined,
-        left: thin, right: thin
-      };
-    });
-  });
-
-  // page break ทุกๆ 7 แถวป้าย (28 ดวง) ให้พิมพ์แยกหน้ากระดาษ แต่ยังอยู่ชีทเดียวกันตามที่ขอ
-  const totalTagRows = Math.ceil(tags.length / COLS);
-  for (let r = ROWS_PER_PAGE; r < totalTagRows; r += ROWS_PER_PAGE) {
-    ws.getRow(r * rowsPerTag).addPageBreak();
-  }
-
-  const buf = await wb.xlsx.writeBuffer();
-  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const filename = 'PriceTags_' + exportSanitizeFilename(docId || 'RTC') + '.xlsx';
-  return { blob: blob, filename: filename };
+  return '<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>ป้ายราคา</title><style>' +
+    '@page{size:A4;margin:8mm}' +
+    'body{margin:0;font-family:"Leelawadee UI","Noto Sans Thai",Tahoma,Arial,sans-serif}' +
+    '.sheet{display:grid;grid-template-columns:repeat(4,5cm);grid-auto-rows:4cm;justify-content:center}' +
+    '.tag{width:5cm;height:4cm;box-sizing:border-box;border:1px solid #999;' +
+    'padding:2mm;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;break-inside:avoid;page-break-inside:avoid}' +
+    '.perkg{font-size:9px;color:#555}' +
+    '.mid{text-align:center}' +
+    '.nm{font-size:12px;font-weight:700;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;' +
+    '-webkit-box-orient:vertical;overflow:hidden}' +
+    '.net{font-size:22px;font-weight:800;margin-top:2mm}' +
+    '.bc{font-size:9px;color:#555;text-align:center;letter-spacing:.02em}' +
+    '.noprint{padding:10px}' +
+    '@media print{.noprint{display:none}}' +
+    '</style></head><body>' +
+    '<div class="noprint"><button onclick="window.print()">พิมพ์ / บันทึกเป็น PDF</button></div>' +
+    pagesHtml +
+    '</body></html>';
 };
 
 window.buildExportPackage = async function (mode, items, meta) {
