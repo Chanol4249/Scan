@@ -1176,6 +1176,7 @@ function renderList(){
     const tags = S.mode==='RTC'
       ? '<span class="tag t">'+Math.round(it.pct*100)+'%</span>'+
         '<span class="tag">'+it.price+' → <b>'+it.newPrice+'</b> ฿</span>'+
+        (it.unitPrice?'<span class="tag">'+it.unitPrice+' → <b>'+roundThaiCash(it.unitPrice*(1-it.pct))+'</b> ฿/กก.</span>':'')+
         '<span class="tag">'+it.qty+' '+esc(it.unit)+'</span>'+
         (it.expIso?'<span class="tag">EXP '+thDate(it.expIso)+'</span>':'')
       : '<span class="tag k">Code '+it.code+'</span><span class="tag">'+it.qty+' ชิ้น</span>'+
