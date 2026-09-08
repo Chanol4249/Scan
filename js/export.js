@@ -201,11 +201,6 @@ window.buildExportXlsx = async function (mode, items, meta, page) {
  * เพราะเทมเพลตต้นฉบับแต่ละหน้าเป็นฟอร์มพิมพ์แยกกันจริง (คนละใบกระดาษ) รวมเป็นชีทเดียวไม่ได้
  * โดยไม่เสี่ยงทำให้ไฟล์ .xlsx เสีย — แต่ยังเป็น "การดาวน์โหลดครั้งเดียว ไฟล์เดียว" ตามที่ต้องการ
  */
-function exportTagNewPrice(price, pct) {
-  price = Number(price); pct = Number(pct);
-  if (!price || !pct) return price || 0;
-  return Math.ceil(Number((price - price * pct).toFixed(6)));
-}
 // ราคาต่อหน่วยหลังลดราคา — สูตรเดียวกับ calcPrice()/roundThaiCash() ในหน้ามือถือ (ปัดลงทวีคูณ 25 สตางค์
 // ตามเครื่องชั่งจริง) คืนค่า null ถ้ารายการนี้ไม่มีราคาต่อหน่วยเดิมบันทึกไว้ (สินค้านับชิ้น ไม่ใช่ชั่งน้ำหนัก)
 function exportTagPerUnit(unitPrice, pct) {
@@ -223,8 +218,9 @@ function exportEscHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&am
  * ด้วย page-break-after ให้ตรง 1 หน้า A4 พอดีเสมอ ไม่ว่าจะมีกี่ดวงก็ตาม
  * แต่ละดวง: บนซ้ายเล็ก = ราคาต่อกก.หลังลดราคา (ถ้ามี — หน่วยคงที่เป็น "กก." เสมอ เพราะเป็นราคาอ้างอิงต่อ
  * กิโลกรัมของสินค้าในฐานข้อมูลกลาง ไม่ใช่หน่วยขาย เช่น "ตัว"/"แพ็ค" ที่โชว์แยกอยู่แล้วในชื่อ), กลาง = ชื่อ
- * สินค้า+ราคาสุทธิตัวใหญ่, ล่างเล็ก = เลขบาร์โค้ด (ตัวหนังสือธรรมดา ไม่ใช่กราฟิก — ของจริงแคชเชียร์สแกนจาก
- * บาร์โค้ดเดิมบนสินค้าอยู่แล้ว) แต่ละรายการพิมพ์ซ้ำตามจำนวนชิ้น (qty)
+ * สินค้า + ป้ายกำกับ "ราคาต่อหน่วยที่ลดแล้ว" เว้นที่ว่างไว้ให้เขียนตัวเลขเอง (ไม่พิมพ์ราคาใหม่ให้อัตโนมัติ
+ * ตามที่ขอ), ล่างเล็ก = เลขบาร์โค้ด (ตัวหนังสือธรรมดา ไม่ใช่กราฟิก — ของจริงแคชเชียร์สแกนจากบาร์โค้ดเดิมบน
+ * สินค้าอยู่แล้ว) แต่ละรายการพิมพ์ซ้ำตามจำนวนชิ้น (qty)
  */
 window.buildPriceTagsHtml = function (items) {
   const PER_PAGE = 28; // 4 ดวง/แถว x 7 แถว/หน้า
@@ -232,11 +228,11 @@ window.buildPriceTagsHtml = function (items) {
   (items || []).forEach(function (it) {
     const qty = Math.max(1, Number(it.qty) || 1);
     const perKg = exportTagPerUnit(it.unitPrice, it.pct);
-    const net = exportTagNewPrice(it.price, it.pct);
     const tagHtml = '<div class="tag">' +
       (perKg != null ? '<div class="perkg">' + perKg.toLocaleString() + ' บ./กก.</div>' : '<div class="perkg">&nbsp;</div>') +
       '<div class="mid"><div class="nm">' + exportEscHtml(it.name) + '</div>' +
-      '<div class="net">' + net.toLocaleString() + ' ฿</div></div>' +
+      '<div class="netLabel">ราคาต่อหน่วยที่ลดแล้ว</div>' +
+      '<div class="netBlank"></div></div>' +
       '<div class="bc">' + exportEscHtml(it.bc) + '</div>' +
       '</div>';
     for (let i = 0; i < qty; i++) tags.push(tagHtml);
@@ -259,7 +255,8 @@ window.buildPriceTagsHtml = function (items) {
     '.mid{text-align:center}' +
     '.nm{font-size:12px;font-weight:700;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;' +
     '-webkit-box-orient:vertical;overflow:hidden}' +
-    '.net{font-size:22px;font-weight:800;margin-top:2mm}' +
+    '.netLabel{font-size:10px;color:#555;margin-top:2mm}' +
+    '.netBlank{border-bottom:1px solid #999;height:9mm;margin:1mm 4mm 0}' +
     '.bc{font-size:9px;color:#555;text-align:center;letter-spacing:.02em}' +
     '.noprint{padding:10px}' +
     '@media print{.noprint{display:none}}' +
