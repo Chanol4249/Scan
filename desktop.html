@@ -57,6 +57,7 @@ label.fld{display:block; font-size:13px; font-weight:600; color:var(--sec); marg
 input,select{width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--input);
   font-size:14px; font-family:inherit; color:var(--navy)}
 .row2{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+.row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px}
 .modal{position:fixed; inset:0; background:rgba(20,40,58,.45); display:none; align-items:center; justify-content:center; z-index:60}
 .modal.show{display:flex}
 .modal .inner{background:var(--bg); width:92%; max-width:760px; max-height:86vh; overflow-y:auto; border-radius:18px; padding:24px}
@@ -87,7 +88,7 @@ hr.d{border:none; border-top:1px solid var(--divider); margin:16px 0}
   </div>
 
   <section id="viewDocs">
-    <div class="row2">
+    <div class="row3">
       <div class="field">
         <input id="searchEmp" placeholder="ค้นหาชื่อหรือรหัสพนักงาน…" oninput="renderDocs()">
       </div>
@@ -97,6 +98,11 @@ hr.d{border:none; border-top:1px solid var(--divider); margin:16px 0}
           <option value="ADJ">ADJ — ใบแก้ไขรายการ</option>
           <option value="RTC">RTC — ฟอร์มลดราคา</option>
           <option value="TRACK">Tracking Receipt Recording</option>
+        </select>
+      </div>
+      <div class="field">
+        <select id="filterBranch" onchange="renderDocs()">
+          <option value="">ทุกสาขา</option>
         </select>
       </div>
     </div>
@@ -222,9 +228,20 @@ async function loadDocs(){
     $('syncBadge').textContent='เชื่อมต่อไม่ได้'; $('syncBadge').style.background='#FDF4E5'; $('syncBadge').style.color='var(--warn)';
   }
 }
+// ตัวเลือกสาขาในฟิลเตอร์เป็น dropdown แต่สาขาไม่ใช่รายการตายตัวในระบบ (พนักงานพิมพ์เองในฟอร์มมือถือ
+// ช่องสาขา ไม่มีชุดค่าคงที่) จึงต้องไล่หาค่าที่ต่างกันจริงจากเอกสารที่โหลดมาแล้วทุกครั้งที่ render — คงค่า
+// ที่เลือกไว้เดิมไว้ด้วย ไม่งั้น dropdown จะรีเซ็ตกลับ "ทุกสาขา" ทุกรอบที่ poll ข้อมูลใหม่ (ทุก 20 วิ)
+function renderBranchOptions(){
+  const sel = $('filterBranch'), current = sel.value;
+  const branches = Array.from(new Set(D.docs.map(d=>String(d.branch||'').trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'th'));
+  sel.innerHTML = '<option value="">ทุกสาขา</option>' +
+    branches.map(b=>'<option value="'+esc(b)+'"'+(b===current?' selected':'')+'>'+esc(b)+'</option>').join('');
+}
 function renderDocs(){
+  renderBranchOptions();
   const q = ($('searchEmp').value||'').trim().toLowerCase();
   const modeFilter = $('filterMode').value;
+  const branchFilter = $('filterBranch').value;
   $('trackSummaryBar').style.display = (modeFilter==='TRACK') ? 'block' : 'none';
   if(modeFilter==='TRACK' && !$('trackSummaryDate').value){
     $('trackSummaryDate').value = new Date().toISOString().slice(0,10);
@@ -232,8 +249,9 @@ function renderDocs(){
   let rows = !q ? D.docs : D.docs.filter(d=>
     String(d.employeeName||'').toLowerCase().includes(q) || String(d.employeeCode||'').toLowerCase().includes(q));
   if(modeFilter) rows = rows.filter(d=>d.mode===modeFilter);
+  if(branchFilter) rows = rows.filter(d=>String(d.branch||'').trim()===branchFilter);
   if(!rows.length){ $('docsBody').innerHTML=''; $('docsEmpty').style.display='block';
-    $('docsEmpty').textContent = (q||modeFilter) ? 'ไม่พบเอกสารตามเงื่อนไขที่เลือก' : 'ยังไม่มีเอกสาร'; return; }
+    $('docsEmpty').textContent = (q||modeFilter||branchFilter) ? 'ไม่พบเอกสารตามเงื่อนไขที่เลือก' : 'ยังไม่มีเอกสาร'; return; }
   $('docsEmpty').style.display='none';
   $('docsBody').innerHTML = rows.map(d=>
     '<tr class="row" onclick="openDoc(\''+d._id+'\')">'+
