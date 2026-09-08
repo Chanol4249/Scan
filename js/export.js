@@ -219,9 +219,8 @@ function exportEscHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&am
  * แต่ละดวง: บนซ้ายเล็ก = ราคาต่อกก.หลังลดราคา (ถ้ามี — หน่วยคงที่เป็น "กก." เสมอ เพราะเป็นราคาอ้างอิงต่อ
  * กิโลกรัมของสินค้าในฐานข้อมูลกลาง ไม่ใช่หน่วยขาย เช่น "ตัว"/"แพ็ค" ที่โชว์แยกอยู่แล้วในชื่อ), กลาง = ชื่อ
  * สินค้า + หัวข้อ "ลดเหลือ" ตัวใหญ่ + ป้ายกำกับเล็กๆ "ราคาต่อหน่วยที่ลดแล้ว" + เว้นบรรทัดว่างไว้ให้เขียน
- * ตัวเลขเอง (ไม่พิมพ์ราคาให้อัตโนมัติตามที่ขอ) มีคำว่า "บาท" กำกับไว้มุมขวาล่างของบรรทัดว่างนั้น, ล่างเล็ก
- * = เลขบาร์โค้ด (ตัวหนังสือธรรมดา ไม่ใช่กราฟิก — ของจริงแคชเชียร์สแกนจากบาร์โค้ดเดิมบนสินค้าอยู่แล้ว)
- * แต่ละรายการพิมพ์ซ้ำตามจำนวนชิ้น (qty)
+ * ตัวเลขเอง (ไม่พิมพ์ราคาให้อัตโนมัติตามที่ขอ) มีคำว่า "บาท" กำกับไว้มุมขวาล่างของบรรทัดว่างนั้น — ไม่พิมพ์
+ * เลขบาร์โค้ดบนป้าย (ตัดออกตามที่ขอ) แต่ละรายการพิมพ์ซ้ำตามจำนวนชิ้น (qty)
  */
 window.buildPriceTagsHtml = function (items) {
   const PER_PAGE = 28; // 4 ดวง/แถว x 7 แถว/หน้า
@@ -236,7 +235,6 @@ window.buildPriceTagsHtml = function (items) {
       '<div class="unitLabel">ราคาต่อหน่วยที่ลดแล้ว</div>' +
       '<div class="netBlank"></div>' +
       '<div class="bahtLabel">บาท</div></div>' +
-      '<div class="bc">' + exportEscHtml(it.bc) + '</div>' +
       '</div>';
     for (let i = 0; i < qty; i++) tags.push(tagHtml);
   });
@@ -253,7 +251,7 @@ window.buildPriceTagsHtml = function (items) {
     'body{margin:0;font-family:"Leelawadee UI","Noto Sans Thai",Tahoma,Arial,sans-serif}' +
     '.sheet{display:grid;grid-template-columns:repeat(4,5cm);grid-auto-rows:4cm;justify-content:center}' +
     '.tag{width:5cm;height:4cm;box-sizing:border-box;border:1px solid #999;' +
-    'padding:2mm;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;break-inside:avoid;page-break-inside:avoid}' +
+    'padding:2mm;display:flex;flex-direction:column;overflow:hidden;break-inside:avoid;page-break-inside:avoid}' +
     '.perkg{font-size:9px;color:#555}' +
     '.mid{text-align:center}' +
     '.nm{font-size:11px;font-weight:700;line-height:1.2;display:-webkit-box;-webkit-line-clamp:1;' +
@@ -262,7 +260,6 @@ window.buildPriceTagsHtml = function (items) {
     '.unitLabel{font-size:8px;color:#555;margin-top:0.5mm}' +
     '.netBlank{border-bottom:1px solid #999;height:6mm;margin:1mm 4mm 0}' +
     '.bahtLabel{font-size:8px;color:#555;text-align:right;margin:0.5mm 4mm 0 0}' +
-    '.bc{font-size:9px;color:#555;text-align:center;letter-spacing:.02em}' +
     '.noprint{padding:10px}' +
     '@media print{.noprint{display:none}}' +
     '</style></head><body>' +
