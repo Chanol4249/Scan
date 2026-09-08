@@ -219,7 +219,7 @@ function exportEscHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&am
  * แต่ละดวง: บนซ้ายเล็ก = ราคาต่อกก.หลังลดราคา (ถ้ามี — หน่วยคงที่เป็น "กก." เสมอ เพราะเป็นราคาอ้างอิงต่อ
  * กิโลกรัมของสินค้าในฐานข้อมูลกลาง ไม่ใช่หน่วยขาย เช่น "ตัว"/"แพ็ค" ที่โชว์แยกอยู่แล้วในชื่อ), กลาง = ชื่อ
  * สินค้า + หัวข้อ "ลดเหลือ" ตัวใหญ่ + ป้ายกำกับเล็กๆ "ราคาต่อหน่วยที่ลดแล้ว" + เว้นบรรทัดว่างไว้ให้เขียน
- * ตัวเลขเอง (ไม่พิมพ์ราคาให้อัตโนมัติตามที่ขอ) มีคำว่า "บาท" กำกับไว้มุมซ้ายล่างของบรรทัดว่างนั้น, ล่างเล็ก
+ * ตัวเลขเอง (ไม่พิมพ์ราคาให้อัตโนมัติตามที่ขอ) มีคำว่า "บาท" กำกับไว้มุมขวาล่างของบรรทัดว่างนั้น, ล่างเล็ก
  * = เลขบาร์โค้ด (ตัวหนังสือธรรมดา ไม่ใช่กราฟิก — ของจริงแคชเชียร์สแกนจากบาร์โค้ดเดิมบนสินค้าอยู่แล้ว)
  * แต่ละรายการพิมพ์ซ้ำตามจำนวนชิ้น (qty)
  */
@@ -261,7 +261,7 @@ window.buildPriceTagsHtml = function (items) {
     '.reduceLabel{font-size:15px;font-weight:800;margin-top:1mm}' +
     '.unitLabel{font-size:8px;color:#555;margin-top:0.5mm}' +
     '.netBlank{border-bottom:1px solid #999;height:6mm;margin:1mm 4mm 0}' +
-    '.bahtLabel{font-size:8px;color:#555;text-align:left;margin:0.5mm 0 0 4mm}' +
+    '.bahtLabel{font-size:8px;color:#555;text-align:right;margin:0.5mm 4mm 0 0}' +
     '.bc{font-size:9px;color:#555;text-align:center;letter-spacing:.02em}' +
     '.noprint{padding:10px}' +
     '@media print{.noprint{display:none}}' +
