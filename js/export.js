@@ -147,8 +147,11 @@ window.buildExportXlsx = async function (mode, items, meta, page) {
     }
     ws.getCell(C.no + r).value = page * cap + i + 1;
     if (mode === 'TRACK') {
+      // meta.trackStartSeq = จำนวนรายการของเอกสาร TRACK อื่นๆ ในวันเดียวกันที่ "มาก่อน" เอกสารนี้
+      // (เดสก์ท็อปคำนวณให้ก่อนเรียก) ไม่งั้น Running No. จะรีเซ็ตเริ่ม 1 ใหม่ทุกครั้งที่เปิดเอกสารใหม่
+      // ทั้งที่ของจริงเป็นเลขวิ่งต่อเนื่องทั้งวันไม่ว่าจะแบ่งบันทึกกี่เอกสารก็ตาม
       const runNoCell = ws.getCell(C.runNo + r);
-      runNoCell.value = exportTrackRunningNo(meta.date, page * cap + i + 1);
+      runNoCell.value = exportTrackRunningNo(meta.date, (meta.trackStartSeq || 0) + page * cap + i + 1);
       exportSetNumFmt(runNoCell, '@'); // เก็บเป็นข้อความ กันเลข 0 นำหน้าหาย
       ws.getCell(C.po + r).value = it.po;
       ws.getCell(C.supNo + r).value = it.supNo;

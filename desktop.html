@@ -100,6 +100,19 @@ hr.d{border:none; border-top:1px solid var(--divider); margin:16px 0}
         </select>
       </div>
     </div>
+    <div class="card" id="trackSummaryBar" style="display:none">
+      <h2>สรุปรวมรายวัน (ทุกร้านค้า)</h2>
+      <p class="tag" style="margin-bottom:12px">รวมทุกเอกสาร Tracking ของวันที่เลือก (ไม่ว่าใครบันทึกกี่ใบก็ตาม) เป็นไฟล์เดียว — Running No. วิ่งต่อเนื่องทั้งวันแทนที่จะรีเซ็ตเริ่ม 1 ใหม่ทุกเอกสาร</p>
+      <div class="row2" style="align-items:end">
+        <div class="field" style="margin-bottom:0">
+          <label class="fld">วันที่</label>
+          <input id="trackSummaryDate" type="date">
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <button class="btn teal" onclick="downloadTrackDailySummary()" style="width:100%">ดาวน์โหลดสรุปรวมรายวัน (.xlsx)</button>
+        </div>
+      </div>
+    </div>
     <div class="card">
       <table>
         <thead><tr><th>เลขที่เอกสาร</th><th>พนักงาน</th><th>ประเภท</th><th>วันที่</th><th>จำนวนรายการ</th><th>สถานะ</th></tr></thead>
@@ -169,7 +182,7 @@ hr.d{border:none; border-top:1px solid var(--divider); margin:16px 0}
 <script src="vendor/exceljs.min.js"></script>
 <script src="cf-config.js?v=20260905-1200"></script>
 <script src="js/cfdb.js?v=20260907-0723"></script>
-<script src="js/export.js?v=20260908-1150"></script>
+<script src="js/export.js?v=20260908-1400"></script>
 <script>
 const $ = id => document.getElementById(id);
 function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show');
@@ -212,6 +225,10 @@ async function loadDocs(){
 function renderDocs(){
   const q = ($('searchEmp').value||'').trim().toLowerCase();
   const modeFilter = $('filterMode').value;
+  $('trackSummaryBar').style.display = (modeFilter==='TRACK') ? 'block' : 'none';
+  if(modeFilter==='TRACK' && !$('trackSummaryDate').value){
+    $('trackSummaryDate').value = new Date().toISOString().slice(0,10);
+  }
   let rows = !q ? D.docs : D.docs.filter(d=>
     String(d.employeeName||'').toLowerCase().includes(q) || String(d.employeeCode||'').toLowerCase().includes(q));
   if(modeFilter) rows = rows.filter(d=>d.mode===modeFilter);
@@ -349,6 +366,23 @@ function downloadPriceTags(){
   window.open(url, '_blank');
   setTimeout(()=>URL.revokeObjectURL(url), 60000);
 }
+// เอกสาร TRACK ไม่มีเลขที่รันกลางของระบบ (แต่ละเอกสารสร้างแยกกันตอนพนักงานกดจบ) — Running No.
+// ต้องวิ่งต่อเนื่องทั้งวันเหมือนสมุดตราปั๊มจริง ไม่ใช่รีเซ็ตเริ่ม 1 ใหม่ทุกเอกสาร จึงต้องเรียงเอกสาร TRACK
+// ทั้งหมดของวันเดียวกันตามเวลาที่บันทึกจริง (updatedAt ที่ตั้งครั้งเดียวตอนจบเอกสาร ไม่ถูกแก้ทับตอนแก้ไข/
+// ดาวน์โหลดซ้ำภายหลัง) แล้วรวม id เป็น tie-breaker กันชนกันตอนเวลาเท่ากันเป๊ะ
+function trackDailyOrder(dateIso){
+  return D.docs.filter(x=>x.mode==='TRACK' && x.date===dateIso).slice()
+    .sort((a,b)=> String(a.updatedAt||'').localeCompare(String(b.updatedAt||'')) || String(a._id).localeCompare(String(b._id)));
+}
+function trackStartSeqFor(d){
+  const ordered = trackDailyOrder(d.date);
+  let seq=0;
+  for(const x of ordered){
+    if(x._id===d._id) break;
+    seq += (x.items ? x.items.length : (x.itemCount||0));
+  }
+  return seq;
+}
 async function downloadDoc(){
   if(!D.modalDoc) return;
   const d = D.modalDoc;
@@ -357,6 +391,7 @@ async function downloadDoc(){
   }
   try{
     const meta = {branch:$('mBranch').value.trim(), dept:$('mDept').value.trim(), date:d.date, docId:d._id, employeeCode:d.employeeCode};
+    if(d.mode==='TRACK') meta.trackStartSeq = trackStartSeqFor(d);
     const {blob, filename} = await window.buildExportPackage(d.mode, d.items||[], meta);
     const a=document.createElement('a');
     a.href=URL.createObjectURL(blob); a.download=filename;
@@ -369,6 +404,27 @@ async function downloadDoc(){
     D.modalDoc.downloadCount = newCount; D.modalDoc.status='printed';
     $('downloadInfo').textContent = 'ดาวน์โหลดแล้ว '+newCount+' ครั้ง';
     loadDocs();
+  }catch(e){ console.error(e); toast('ดาวน์โหลดไม่สำเร็จ: '+e.message); }
+}
+
+// รวมรายการจากทุกเอกสาร TRACK ของวันที่เลือก (ทุกร้านค้า/ทุกพนักงานที่บันทึกวันนั้น) เป็นไฟล์เดียว —
+// trackStartSeq ปล่อยเป็น 0 เพราะสรุปนี้เริ่มนับ Running No. ใหม่จาก 1 ของทั้งวันเอง (ไม่ใช่ต่อจากเอกสารไหน)
+async function downloadTrackDailySummary(){
+  const dateIso = $('trackSummaryDate').value;
+  if(!dateIso){ toast('กรุณาเลือกวันที่'); return; }
+  const ordered = trackDailyOrder(dateIso);
+  if(!ordered.length){ toast('ไม่พบเอกสาร Tracking ในวันที่เลือก'); return; }
+  const items = [];
+  ordered.forEach(d=> (d.items||[]).forEach(it=> items.push(it)));
+  if(!items.length){ toast('เอกสารวันที่เลือกยังไม่มีรายการ'); return; }
+  try{
+    const meta = {branch:'', dept:'', date:dateIso, docId:'TRACK-SUMMARY-'+dateIso.replace(/-/g,''), employeeCode:'summary'};
+    const {blob, filename} = await window.buildExportPackage('TRACK', items, meta);
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+    toast('ดาวน์โหลดสรุปรวมรายวันแล้ว ('+ordered.length+' เอกสาร รวม '+items.length+' รายการ)');
   }catch(e){ console.error(e); toast('ดาวน์โหลดไม่สำเร็จ: '+e.message); }
 }
 
