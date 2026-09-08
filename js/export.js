@@ -201,6 +201,13 @@ window.buildExportXlsx = async function (mode, items, meta, page) {
  * เพราะเทมเพลตต้นฉบับแต่ละหน้าเป็นฟอร์มพิมพ์แยกกันจริง (คนละใบกระดาษ) รวมเป็นชีทเดียวไม่ได้
  * โดยไม่เสี่ยงทำให้ไฟล์ .xlsx เสีย — แต่ยังเป็น "การดาวน์โหลดครั้งเดียว ไฟล์เดียว" ตามที่ต้องการ
  */
+// ราคาต่อหน่วยหลังลดราคา — สูตรเดียวกับ calcPrice()/roundThaiCash() ในหน้ามือถือ (ปัดลงทวีคูณ 25 สตางค์
+// ตามเครื่องชั่งจริง) คืนค่า null ถ้ารายการนี้ไม่มีราคาต่อหน่วยเดิมบันทึกไว้ (สินค้านับชิ้น ไม่ใช่ชั่งน้ำหนัก)
+function exportTagPerUnit(unitPrice, pct) {
+  unitPrice = Number(unitPrice); pct = Number(pct);
+  if (!unitPrice || !pct) return null;
+  return Math.floor(Number((unitPrice - unitPrice * pct).toFixed(6)) * 4) / 4;
+}
 function exportEscHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
 /*
@@ -209,16 +216,19 @@ function exportEscHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&am
  * Save as PDF โดยไม่ต้องพึ่ง dependency เพิ่ม) ป้ายขนาดจริงดวงละ 5 x 4 ซม. ใช้ CSS Grid บังคับ 4 คอลัมน์
  * แน่นอน (ไม่ใช่ flex-wrap ที่ปัดจำนวนต่อแถวไม่แน่นอนตามพื้นที่ว่างเหลือ) และตัดหน้าทุก 28 ดวง (7 แถว)
  * ด้วย page-break-after ให้ตรง 1 หน้า A4 พอดีเสมอ ไม่ว่าจะมีกี่ดวงก็ตาม
- * แต่ละดวง: ชื่อสินค้า + หัวข้อ "ลดเหลือ" ตัวใหญ่ + ป้ายกำกับเล็กๆ "ราคาต่อหน่วยที่ลดแล้ว" + เว้นบรรทัดว่างไว้
- * ให้เขียนตัวเลขเอง (ไม่พิมพ์ราคาให้อัตโนมัติตามที่ขอ) มีคำว่า "บาท" กำกับไว้มุมขวาล่างของบรรทัดว่างนั้น —
- * ไม่พิมพ์ราคาลด/เลขบาร์โค้ดใดๆ บนป้าย (ตัดออกตามที่ขอ) แต่ละรายการพิมพ์ซ้ำตามจำนวนชิ้น (qty)
+ * แต่ละดวง: บนซ้ายเล็ก = ราคาต่อกก.หลังลดราคา (ถ้ามี — หน่วยคงที่เป็น "กก." เสมอ), กลาง = ชื่อสินค้า + หัวข้อ
+ * "ลดเหลือ" ตัวใหญ่ + ป้ายกำกับเล็กๆ "ราคาต่อหน่วยที่ลดแล้ว" + เว้นที่ว่างไว้ให้เขียนตัวเลขเอง (ไม่พิมพ์เส้น/
+ * ราคาให้อัตโนมัติตามที่ขอ) มีคำว่า "บาท" กำกับไว้มุมขวาล่างของที่ว่างนั้น — ไม่พิมพ์เลขบาร์โค้ดบนป้าย (ตัดออก
+ * ตามที่ขอ) แต่ละรายการพิมพ์ซ้ำตามจำนวนชิ้น (qty)
  */
 window.buildPriceTagsHtml = function (items) {
   const PER_PAGE = 28; // 4 ดวง/แถว x 7 แถว/หน้า
   const tags = [];
   (items || []).forEach(function (it) {
     const qty = Math.max(1, Number(it.qty) || 1);
+    const perKg = exportTagPerUnit(it.unitPrice, it.pct);
     const tagHtml = '<div class="tag">' +
+      (perKg != null ? '<div class="perkg">' + perKg.toLocaleString() + ' บ./กก.</div>' : '<div class="perkg">&nbsp;</div>') +
       '<div class="mid"><div class="nm">' + exportEscHtml(it.name) + '</div>' +
       '<div class="reduceLabel">ลดเหลือ</div>' +
       '<div class="unitLabel">ราคาต่อหน่วยที่ลดแล้ว</div>' +
@@ -240,13 +250,14 @@ window.buildPriceTagsHtml = function (items) {
     'body{margin:0;font-family:"Leelawadee UI","Noto Sans Thai",Tahoma,Arial,sans-serif}' +
     '.sheet{display:grid;grid-template-columns:repeat(4,5cm);grid-auto-rows:4cm;justify-content:center}' +
     '.tag{width:5cm;height:4cm;box-sizing:border-box;border:1px solid #999;' +
-    'padding:2mm;display:flex;flex-direction:column;justify-content:center;overflow:hidden;break-inside:avoid;page-break-inside:avoid}' +
+    'padding:2mm;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;break-inside:avoid;page-break-inside:avoid}' +
+    '.perkg{font-size:9px;color:#555}' +
     '.mid{text-align:center}' +
     '.nm{font-size:11px;font-weight:700;line-height:1.2;display:-webkit-box;-webkit-line-clamp:1;' +
     '-webkit-box-orient:vertical;overflow:hidden}' +
     '.reduceLabel{font-size:15px;font-weight:800;margin-top:1mm}' +
     '.unitLabel{font-size:8px;color:#555;margin-top:0.5mm}' +
-    '.netBlank{border-bottom:1px solid #999;height:6mm;margin:1mm 4mm 0}' +
+    '.netBlank{height:6mm;margin:1mm 4mm 0}' +
     '.bahtLabel{font-size:8px;color:#555;text-align:right;margin:0.5mm 4mm 0 0}' +
     '.noprint{padding:10px}' +
     '@media print{.noprint{display:none}}' +

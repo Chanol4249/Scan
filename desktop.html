@@ -182,7 +182,7 @@ hr.d{border:none; border-top:1px solid var(--divider); margin:16px 0}
 <script src="vendor/exceljs.min.js"></script>
 <script src="cf-config.js?v=20260905-1200"></script>
 <script src="js/cfdb.js?v=20260907-0723"></script>
-<script src="js/export.js?v=20260908-2300"></script>
+<script src="js/export.js?v=20260908-2400"></script>
 <script>
 const $ = id => document.getElementById(id);
 function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show');
@@ -358,12 +358,23 @@ function renderDownloadBtns(d){
 // ป้ายราคา (RTC) เปิดเป็นหน้า HTML แท็บใหม่ให้กด "พิมพ์ / บันทึกเป็น PDF" เอง (ผ่าน print dialog ของ
 // เบราว์เซอร์ — ไม่มีไลบรารีสร้างไฟล์ .pdf ในเครื่อง) ขนาดจริง 5x4ซม./ดวง บังคับ 4 ดวง/แถว 7 แถว/หน้า
 // (ดู buildPriceTagsHtml) เกิน 28 ดวงตัดหน้าอัตโนมัติ — ไม่ใช่แบบฟอร์มตามเทมเพลตของ Big C
-function downloadPriceTags(){
+async function downloadPriceTags(){
   if(!D.modalDoc) return;
   const items = D.modalDoc.items||[];
   if(!items.length){ toast('ไม่มีรายการให้พิมพ์ป้าย'); return; }
   try{
-    const html = window.buildPriceTagsHtml(items);
+    // รายการที่ไม่มีราคาต่อกก.บันทึกไว้ในเอกสาร (เช่นของที่ไม่ได้สแกนบาร์โค้ดแบบฝังน้ำหนัก แต่ฐานข้อมูล
+    // สินค้ากลางก็ยังมีราคาต่อกก.ของ PLU นั้นอยู่ดี) ให้หาจากฐานข้อมูลสินค้ามาเติมเฉพาะตอน export ป้ายราคา
+    // นี้เท่านั้น — ไม่แตะฟอร์มสแกนฝั่งมือถือ/ไม่เขียนกลับเข้าเอกสารเดิม
+    const products = await window.fsList('products').catch(()=>[]);
+    const priceByKey = {};
+    products.forEach(function(p){ if(p.price) priceByKey[p._id] = p.price; });
+    const tagItems = items.map(function(it){
+      if(it.unitPrice) return it;
+      const fallback = priceByKey[scaleKey(normBc(it.bc||''))];
+      return fallback ? Object.assign({}, it, {unitPrice: fallback}) : it;
+    });
+    const html = window.buildPriceTagsHtml(tagItems);
     const url = URL.createObjectURL(new Blob([html], {type:'text/html'}));
     window.open(url, '_blank');
     setTimeout(()=>URL.revokeObjectURL(url), 60000);
