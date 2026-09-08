@@ -395,6 +395,7 @@ button.mode-tile:focus-visible{outline:3px solid rgba(22,155,117,.24);outline-of
         <input id="fPct" type="number" inputmode="numeric" placeholder="หรือพิมพ์ % เอง" style="margin-top:10px">
       </div>
       <div class="calc"><span>ราคาที่ปรับ (ปัดขึ้น)</span><b id="shCalc">—</b></div>
+      <div class="calc" id="wrapCalcPerKg" style="display:none"><span>ราคาต่อกก. (หลังลดราคา)</span><b id="shCalcPerKg">—</b></div>
       <div class="row2">
         <div class="field"><label class="fld">จำนวน (ชิ้น)</label>
           <input id="fRQty" type="number" inputmode="numeric" value="1"></div>
@@ -956,6 +957,9 @@ function toggleQtySign(){
 function calcPrice(){
   const p=Number($('fPrice').value), pct=Number($('fPct').value);
   $('shCalc').textContent = (p>0&&pct>0) ? roundUpPrice(p,pct/100).toLocaleString()+' ฿' : '—';
+  // ราคาต่อกก. หลังลดราคา — คิดจากราคาต่อกก.เดิม (fUnitPrice) ลดตาม % เดียวกับราคาขาย ปัดแบบเครื่องชั่งจริง
+  const up=Number($('fUnitPrice').value);
+  $('shCalcPerKg').textContent = (up>0&&pct>0) ? roundThaiCash(up*(1-pct/100)).toLocaleString()+' ฿/กก.' : '—';
 }
 // ผู้ใช้พิมพ์แก้ราคาขายเอง -> ซิงก์ราคาต่อกก. ให้ตรงกัน (เว้นแต่กำลังพิมพ์อยู่ในช่องนั้นเองไม่งั้นเคอร์เซอร์
 // จะกระโดดขณะพิมพ์) แยกจาก calcPrice() เพราะตอนเปิดชีทครั้งแรก fUnitPrice ถูกตั้งจากราคากลางที่ถูกต้อง
@@ -1023,6 +1027,7 @@ function openSheet(bc, editIdx, weightKg){
   // แสดงน้ำหนักที่ถอดจากบาร์โค้ดให้เห็นด้วย (เฉพาะสินค้าชั่งน้ำหนัก) จะได้เช็คกับป้ายจริงได้ทันที
   $('shWeight').style.display = weightKg ? 'block' : 'none';
   $('wrapUnitPrice').style.display = weightKg ? 'block' : 'none';
+  $('wrapCalcPerKg').style.display = weightKg ? 'block' : 'none';
   $('shName').textContent = (it&&it.name)||(m&&m.name)||'ไม่พบในรายการสินค้า';
   $('shProd').className = 'prodbox'+(((m&&m.name)||(it&&it.name))?'':' warn');
   $('wrapManualName').style.display = (!isTrack && !(m&&m.name)) ? 'block' : 'none';
