@@ -217,9 +217,9 @@ function exportEscHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&am
  * แน่นอน (ไม่ใช่ flex-wrap ที่ปัดจำนวนต่อแถวไม่แน่นอนตามพื้นที่ว่างเหลือ) และตัดหน้าทุก 28 ดวง (7 แถว)
  * ด้วย page-break-after ให้ตรง 1 หน้า A4 พอดีเสมอ ไม่ว่าจะมีกี่ดวงก็ตาม
  * แต่ละดวง: บนซ้ายเล็ก = ราคาต่อกก.หลังลดราคา (ถ้ามี — หน่วยคงที่เป็น "กก." เสมอ), กลาง = ชื่อสินค้า + หัวข้อ
- * "ลดเหลือ" ตัวใหญ่ + ป้ายกำกับเล็กๆ "ราคาต่อหน่วยที่ลดแล้ว" + เว้นที่ว่างไว้ให้เขียนตัวเลขเอง (ไม่พิมพ์เส้น/
- * ราคาให้อัตโนมัติตามที่ขอ) มีคำว่า "บาท" กำกับไว้มุมขวาล่างของที่ว่างนั้น — ไม่พิมพ์เลขบาร์โค้ดบนป้าย (ตัดออก
- * ตามที่ขอ) แต่ละรายการพิมพ์ซ้ำตามจำนวนชิ้น (qty)
+ * "ลดเหลือ" ตัวใหญ่ + เว้นที่ว่างโล่งๆ ไว้ให้เขียนตัวเลขเอง (ไม่พิมพ์ป้ายกำกับ/เส้น/ราคาให้อัตโนมัติตามที่ขอ)
+ * มีคำว่า "บาท" กำกับไว้มุมขวาล่างของที่ว่างนั้น — ไม่พิมพ์เลขบาร์โค้ดบนป้าย (ตัดออกตามที่ขอ) แต่ละรายการ
+ * พิมพ์ซ้ำตามจำนวนชิ้น (qty)
  */
 window.buildPriceTagsHtml = function (items) {
   const PER_PAGE = 28; // 4 ดวง/แถว x 7 แถว/หน้า
@@ -231,7 +231,6 @@ window.buildPriceTagsHtml = function (items) {
       (perKg != null ? '<div class="perkg">' + perKg.toLocaleString() + ' บ./กก.</div>' : '<div class="perkg">&nbsp;</div>') +
       '<div class="mid"><div class="nm">' + exportEscHtml(it.name) + '</div>' +
       '<div class="reduceLabel">ลดเหลือ</div>' +
-      '<div class="unitLabel">ราคาต่อหน่วยที่ลดแล้ว</div>' +
       '<div class="netBlank"></div>' +
       '<div class="bahtLabel">บาท</div></div>' +
       '</div>';
@@ -256,8 +255,7 @@ window.buildPriceTagsHtml = function (items) {
     '.nm{font-size:11px;font-weight:700;line-height:1.2;display:-webkit-box;-webkit-line-clamp:1;' +
     '-webkit-box-orient:vertical;overflow:hidden}' +
     '.reduceLabel{font-size:15px;font-weight:800;margin-top:1mm}' +
-    '.unitLabel{font-size:8px;color:#555;margin-top:0.5mm}' +
-    '.netBlank{height:6mm;margin:1mm 4mm 0}' +
+    '.netBlank{height:9mm;margin:1mm 4mm 0}' +
     '.bahtLabel{font-size:8px;color:#555;text-align:right;margin:0.5mm 4mm 0 0}' +
     '.noprint{padding:10px}' +
     '@media print{.noprint{display:none}}' +
