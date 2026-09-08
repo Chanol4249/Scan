@@ -1026,12 +1026,8 @@ function openSheet(bc, editIdx, weightKg){
   $('shProd').style.display = isTrack ? 'none' : 'block';
   // แสดงน้ำหนักที่ถอดจากบาร์โค้ดให้เห็นด้วย (เฉพาะสินค้าชั่งน้ำหนัก) จะได้เช็คกับป้ายจริงได้ทันที
   $('shWeight').style.display = weightKg ? 'block' : 'none';
-  // ราคาต่อกก. โชว์ได้ทันทีที่ฐานข้อมูลสินค้ามีราคากลางไว้ (m.price) ไม่ต้องรอบาร์โค้ดที่ฝังน้ำหนักมาด้วย —
-  // สินค้าชั่งน้ำหนักหลายตัว (เช่น ปลา/ไก่ ขายเป็นตัว น้ำหนักเขียนเป็นช่วงไว้ในชื่อ) ไม่ได้ใช้บาร์โค้ดแบบฝัง
-  // น้ำหนักเลย แต่ราคากลางในฐานข้อมูลก็ยังเป็นราคาต่อกก.อยู่ดี (ของใหม่เท่านั้น แก้รายการเดิมยังซ่อนไว้เหมือนเดิม)
-  const hasUnitPrice = !it && !!(m && m.price);
-  $('wrapUnitPrice').style.display = hasUnitPrice ? 'block' : 'none';
-  $('wrapCalcPerKg').style.display = hasUnitPrice ? 'block' : 'none';
+  $('wrapUnitPrice').style.display = weightKg ? 'block' : 'none';
+  $('wrapCalcPerKg').style.display = weightKg ? 'block' : 'none';
   $('shName').textContent = (it&&it.name)||(m&&m.name)||'ไม่พบในรายการสินค้า';
   $('shProd').className = 'prodbox'+(((m&&m.name)||(it&&it.name))?'':' warn');
   $('wrapManualName').style.display = (!isTrack && !(m&&m.name)) ? 'block' : 'none';
@@ -1053,8 +1049,8 @@ function openSheet(bc, editIdx, weightKg){
     // master ก่อน ถึงจะได้ราคาจริงของชิ้นนั้น ไม่ใช่ราคาต่อกก./ต่อหน่วยเฉยๆ (แก้รายการเดิมใช้ it.price เดิมไว้)
     const scaledPrice = (!it && weightKg && m && m.price) ? roundThaiCash(weightKg*m.price) : null;
     $('fPrice').value=(it&&it.price)||scaledPrice||(m&&m.price)||'';
-    // ราคาต่อกก. เริ่มต้นจากราคากลางที่มีอยู่แล้ว (ของใหม่เท่านั้น) — ไม่ผูกกับ weightKg แล้ว (ดูเหตุผลด้านบน)
-    $('fUnitPrice').value = hasUnitPrice ? m.price : '';
+    // ราคาต่อกก. เริ่มต้นจากราคากลางที่มีอยู่แล้ว (ของใหม่เท่านั้น) ให้ตรงกับราคาขายที่คำนวณไว้ข้างบน
+    $('fUnitPrice').value = (!it && weightKg && m && m.price) ? m.price : '';
     $('fPct').value= it?Math.round(it.pct*100):'';
     $('fRQty').value= it?it.qty:1;
     $('fRExp').value=(it&&it.expIso)||'';
