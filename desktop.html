@@ -139,6 +139,12 @@ hr.d{border:none; border-top:1px solid var(--divider); margin:16px 0}
       <p class="tag" id="productCount">กำลังตรวจนับฐานข้อมูลสินค้า…</p>
     </div>
     <div class="card">
+      <h2>ซ่อมสาขาของเอกสารเก่า</h2>
+      <p class="tag" style="margin-bottom:12px">เอกสารที่สร้างไว้ก่อนเปลี่ยนช่องสาขาเป็น dropdown จะไม่มีค่าสาขาตรงกับ 16 สาขาปัจจุบัน (ฟิลเตอร์สาขาในหน้ารายการเลยไม่เจอ) ปุ่มนี้จะเติมสาขาให้อัตโนมัติจากสาขาของพนักงานที่สร้างเอกสารนั้น — แก้เฉพาะเอกสารที่ยังไม่มีสาขาตรงกับรายการ ไม่แตะเอกสารที่มีสาขาถูกต้องอยู่แล้ว</p>
+      <button class="btn teal" onclick="fixDocBranchesFromEmployees()">ซ่อมสาขาเอกสารเก่าจากรหัสพนักงาน</button>
+      <p id="fixBranchMsg" style="margin-top:10px;color:var(--sec);font-size:13px"></p>
+    </div>
+    <div class="card">
       <h2>รายชื่อพนักงาน</h2>
       <div class="row3">
         <div class="field"><label class="fld">รหัสพนักงาน</label><input id="newEmpCode"></div>
@@ -224,6 +230,34 @@ async function loadProductCount(){
   }catch(e){
     $('productCount').textContent = 'ตรวจนับฐานข้อมูลสินค้าไม่สำเร็จ — ตรวจการเชื่อมต่อ';
   }
+}
+// เอกสารเก่า (ก่อนเปลี่ยนช่องสาขาเป็น dropdown) มีค่าสาขาเป็นข้อความอิสระหรือว่างเปล่า ไม่ตรงกับ 16 สาขา
+// ปัจจุบัน — เดาสาขาที่ถูกต้องจากสาขาของ "พนักงานที่สร้างเอกสาร" (employeeCode) แทน เพราะข้อมูลนั้นเพิ่งเติม
+// ให้ครบแล้ว ไม่แตะเอกสารที่มีสาขาตรงกับรายการอยู่แล้ว หรือพนักงานที่สร้างเอกสารนั้นยังไม่มีสาขาเหมือนกัน
+async function fixDocBranchesFromEmployees(){
+  const msg = $('fixBranchMsg');
+  msg.textContent = 'กำลังตรวจสอบ…';
+  try{
+    const [docs, employees] = await Promise.all([window.fsList('documents'), window.fsList('employees')]);
+    const empBranch = {};
+    employees.forEach(function(e){
+      if(e.branch && (window.BRANCHES||[]).includes(e.branch)) empBranch[e._id] = e.branch;
+    });
+    const targets = docs.filter(function(d){
+      return !(window.BRANCHES||[]).includes(String(d.branch||'').trim()) && empBranch[d.employeeCode];
+    });
+    if(!targets.length){ msg.textContent = 'ไม่พบเอกสารที่ต้องซ่อม (สาขาตรงกับรายการอยู่แล้ว หรือหาสาขาจากรหัสพนักงานไม่ได้)'; return; }
+    if(!confirm('พบ '+targets.length+' เอกสารที่จะเติมสาขาให้อัตโนมัติจากรหัสพนักงาน ดำเนินการต่อ?')) { msg.textContent=''; return; }
+    let ok=0;
+    for(let i=0;i<targets.length;i++){
+      const d = targets[i];
+      try{ await window.fsUpdate('documents', d._id, {branch: empBranch[d.employeeCode]}); ok++; }catch(e){}
+      if((i+1)%10===0) msg.textContent = 'กำลังซ่อม… '+ok+'/'+targets.length;
+    }
+    msg.textContent = 'ซ่อมสาขาแล้ว '+ok+'/'+targets.length+' เอกสาร';
+    toast('ซ่อมสาขาเอกสารเก่าเสร็จแล้ว');
+    loadDocs();
+  }catch(e){ console.error(e); msg.textContent = 'ตรวจสอบไม่สำเร็จ — ตรวจการเชื่อมต่อ'; }
 }
 /* ---------- โหลดรายการเอกสาร (poll ทุก 4 วิ ให้ใกล้เคียง real-time — REST API ไม่มี live listener) ---------- */
 async function loadDocs(){
