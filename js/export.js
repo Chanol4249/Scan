@@ -208,6 +208,12 @@ function exportTagPerUnit(unitPrice, pct) {
   if (!unitPrice || !pct) return null;
   return Math.floor(Number((unitPrice - unitPrice * pct).toFixed(6)) * 4) / 4;
 }
+// ราคาที่ปรับ (ลดเหลือ) — สูตรเดียวกับ roundUpPrice() ในหน้ามือถือ (ปัดขึ้นเป็นจำนวนเต็มบาท)
+function exportTagNewPrice(price, pct) {
+  price = Number(price); pct = Number(pct);
+  if (!price || !pct) return price || 0;
+  return Math.ceil(Number((price - price * pct).toFixed(6)));
+}
 function exportEscHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
 /*
@@ -217,9 +223,8 @@ function exportEscHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&am
  * แน่นอน (ไม่ใช่ flex-wrap ที่ปัดจำนวนต่อแถวไม่แน่นอนตามพื้นที่ว่างเหลือ) และตัดหน้าทุก 28 ดวง (7 แถว)
  * ด้วย page-break-after ให้ตรง 1 หน้า A4 พอดีเสมอ ไม่ว่าจะมีกี่ดวงก็ตาม
  * แต่ละดวง: บนซ้ายเล็ก = ราคาต่อกก.หลังลดราคา (ถ้ามี — หน่วยคงที่เป็น "กก." เสมอ), กลาง = ชื่อสินค้า + หัวข้อ
- * "ลดเหลือ" ตัวใหญ่ + เว้นที่ว่างโล่งๆ ไว้ให้เขียนตัวเลขเอง (ไม่พิมพ์ป้ายกำกับ/เส้น/ราคาให้อัตโนมัติตามที่ขอ)
- * มีคำว่า "บาท" กำกับไว้มุมขวาล่างของที่ว่างนั้น — ไม่พิมพ์เลขบาร์โค้ดบนป้าย (ตัดออกตามที่ขอ) แต่ละรายการ
- * พิมพ์ซ้ำตามจำนวนชิ้น (qty)
+ * "ลดเหลือ" ตัวใหญ่ + ราคาที่ปรับแล้วพิมพ์ให้อัตโนมัติ (ตามที่ขอ ไม่เว้นว่างให้เขียนเองอีกต่อไป) + "บาท" —
+ * ไม่พิมพ์เลขบาร์โค้ดบนป้าย (ตัดออกตามที่ขอ) แต่ละรายการพิมพ์ซ้ำตามจำนวนชิ้น (qty)
  */
 window.buildPriceTagsHtml = function (items) {
   const PER_PAGE = 28; // 4 ดวง/แถว x 7 แถว/หน้า
@@ -227,12 +232,12 @@ window.buildPriceTagsHtml = function (items) {
   (items || []).forEach(function (it) {
     const qty = Math.max(1, Number(it.qty) || 1);
     const perKg = exportTagPerUnit(it.unitPrice, it.pct);
+    const net = exportTagNewPrice(it.price, it.pct);
     const tagHtml = '<div class="tag">' +
       (perKg != null ? '<div class="perkg">' + perKg.toLocaleString() + ' บ./กก.</div>' : '<div class="perkg">&nbsp;</div>') +
       '<div class="mid"><div class="nm">' + exportEscHtml(it.name) + '</div>' +
       '<div class="reduceLabel">ลดเหลือ</div>' +
-      '<div class="netBlank"></div>' +
-      '<div class="bahtLabel">บาท</div></div>' +
+      '<div class="netPrice">' + net.toLocaleString() + ' <span class="bahtInline">บาท</span></div></div>' +
       '</div>';
     for (let i = 0; i < qty; i++) tags.push(tagHtml);
   });
@@ -255,8 +260,8 @@ window.buildPriceTagsHtml = function (items) {
     '.nm{font-size:11px;font-weight:700;line-height:1.2;display:-webkit-box;-webkit-line-clamp:1;' +
     '-webkit-box-orient:vertical;overflow:hidden}' +
     '.reduceLabel{font-size:15px;font-weight:800;margin-top:1mm}' +
-    '.netBlank{height:9mm;margin:1mm 4mm 0}' +
-    '.bahtLabel{font-size:8px;color:#555;text-align:right;margin:0.5mm 4mm 0 0}' +
+    '.netPrice{font-size:22px;font-weight:800;margin-top:1mm}' +
+    '.bahtInline{font-size:12px;font-weight:600}' +
     '.noprint{padding:10px}' +
     '@media print{.noprint{display:none}}' +
     '</style></head><body>' +
