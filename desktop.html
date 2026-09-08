@@ -182,7 +182,7 @@ hr.d{border:none; border-top:1px solid var(--divider); margin:16px 0}
 <script src="vendor/exceljs.min.js"></script>
 <script src="cf-config.js?v=20260905-1200"></script>
 <script src="js/cfdb.js?v=20260907-0723"></script>
-<script src="js/export.js?v=20260908-1400"></script>
+<script src="js/export.js?v=20260908-1600"></script>
 <script>
 const $ = id => document.getElementById(id);
 function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show');
@@ -355,16 +355,19 @@ function renderDownloadBtns(d){
   if(d.mode==='RTC') html += '<button class="btn ghost" onclick="downloadPriceTags()">ดาวน์โหลดป้ายราคา</button>';
   $('downloadBtns').innerHTML = html;
 }
-// เปิดหน้าป้ายราคา (RTC) เป็นแท็บใหม่ให้กดพิมพ์/บันทึกเป็น PDF เอง — ไม่ผ่าน .xlsx เพราะเป็นป้ายกระดาษ
-// ขนาดจริง 5x4ซม. ต่อดวง ไม่ใช่แบบฟอร์มตามเทมเพลตของ Big C
-function downloadPriceTags(){
+// ป้ายราคา (RTC) เป็นไฟล์ Excel จริง (ไม่ใช่หน้า HTML) ขนาดจริง 5x4ซม./ดวง 4 ดวง/แถว 7 แถว/หน้า
+// เกิน 28 ดวงขึ้นหน้าถัดไปในชีทเดียวกันเอง (ดู buildPriceTagsXlsx) — ไม่ใช่แบบฟอร์มตามเทมเพลตของ Big C
+async function downloadPriceTags(){
   if(!D.modalDoc) return;
   const items = D.modalDoc.items||[];
   if(!items.length){ toast('ไม่มีรายการให้พิมพ์ป้าย'); return; }
-  const html = window.buildPriceTagsHtml(items);
-  const url = URL.createObjectURL(new Blob([html], {type:'text/html'}));
-  window.open(url, '_blank');
-  setTimeout(()=>URL.revokeObjectURL(url), 60000);
+  try{
+    const {blob, filename} = await window.buildPriceTagsXlsx(items, D.modalDoc._id);
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+  }catch(e){ console.error(e); toast('สร้างไฟล์ป้ายราคาไม่สำเร็จ: '+e.message); }
 }
 // เอกสาร TRACK ไม่มีเลขที่รันกลางของระบบ (แต่ละเอกสารสร้างแยกกันตอนพนักงานกดจบ) — Running No.
 // ต้องวิ่งต่อเนื่องทั้งวันเหมือนสมุดตราปั๊มจริง ไม่ใช่รีเซ็ตเริ่ม 1 ใหม่ทุกเอกสาร จึงต้องเรียงเอกสาร TRACK
