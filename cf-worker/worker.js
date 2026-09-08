@@ -54,8 +54,15 @@ export default {
       if (!col) return json({ ok: true }); // health check — ใช้แทน fsAutoLogin เดิมของ Firebase (เช็คว่าเข้าถึง API ได้)
 
       if (request.method === 'GET' && !id) {
-        // fsList — คืนทุก document ใน collection
-        const { results } = await env.DB.prepare('SELECT id, data FROM docstore WHERE col = ?').bind(col).all();
+        // fsList — ปกติคืนทุก document ใน collection แต่ documents รองรับ ?unprinted=1 ให้กรองเฉพาะ
+        // เอกสารที่ status ยังไม่เป็น "printed" ตั้งแต่ชั้น SQL เลย (ลดจำนวน row read ต่อครั้ง ไม่ต้อง
+        // ดึงทั้งหมดมาแล้วมากรองฝั่ง client) — เดสก์ท็อปใช้ตอน poll เป็นระยะ เอกสารที่ printed แล้วโหลด
+        // เต็มครั้งแรกครั้งเดียวพอ ไม่ต้องดึงซ้ำทุกรอบ
+        let sql = 'SELECT id, data FROM docstore WHERE col = ?';
+        if (col === 'documents' && url.searchParams.get('unprinted') === '1') {
+          sql += " AND json_extract(data, '$.status') != 'printed'";
+        }
+        const { results } = await env.DB.prepare(sql).bind(col).all();
         return json({ documents: results.map(rowToDoc) });
       }
 

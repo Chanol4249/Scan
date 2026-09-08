@@ -33,8 +33,10 @@ window.fsAutoLogin = async function () {
   return true;
 };
 
-window.fsList = async function (col) {
-  const r = await cfFetch(cfUrl(col));
+// query: query string เสริม (เช่น 'unprinted=1') ให้ Worker กรองฝั่ง SQL ก่อนส่งกลับมา — ไม่ใส่ก็ได้
+// พฤติกรรมเหมือนเดิมทุกอย่าง (คืนทุก document ใน collection)
+window.fsList = async function (col, query) {
+  const r = await cfFetch(cfUrl(col) + (query ? ('?' + query) : ''));
   const d = await r.json();
   if (d.error) throw new Error(d.error.message);
   return d.documents || [];

@@ -196,7 +196,7 @@ hr.d{border:none; border-top:1px solid var(--divider); margin:16px 0}
 <script src="vendor/exceljs.min.js"></script>
 <script src="cf-config.js?v=20260905-1200"></script>
 <script src="js/branches.js?v=20260908-0001"></script>
-<script src="js/cfdb.js?v=20260907-0723"></script>
+<script src="js/cfdb.js?v=20260908-1200"></script>
 <script src="js/export.js?v=20260908-2700"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -257,13 +257,27 @@ async function fixDocBranchesFromEmployees(){
     }
     msg.textContent = 'ซ่อมสาขาแล้ว '+ok+'/'+targets.length+' เอกสาร';
     toast('ซ่อมสาขาเอกสารเก่าเสร็จแล้ว');
-    loadDocs();
+    loadDocs(true); // เอกสารที่แก้อาจมีทั้ง printed/ไม่ printed ปน — โหลดเต็มให้ชัวร์ว่าเห็นค่าล่าสุดครบ
   }catch(e){ console.error(e); msg.textContent = 'ตรวจสอบไม่สำเร็จ — ตรวจการเชื่อมต่อ'; }
 }
-/* ---------- โหลดรายการเอกสาร (poll ทุก 4 วิ ให้ใกล้เคียง real-time — REST API ไม่มี live listener) ---------- */
-async function loadDocs(){
+/* ---------- โหลดรายการเอกสาร (poll ทุก 60 วิ ให้ใกล้เคียง real-time — REST API ไม่มี live listener) ----------
+ * full=true (ตอนโหลดหน้าครั้งแรก และตอน refresh หลังทำ action ที่กระทบเอกสาร printed เช่นลบ/ดาวน์โหลด/
+ * แก้ไข/ซ่อมสาขา) ดึงทุกเอกสารมาแทนที่ D.docs ทั้งชุดเหมือนเดิม — full=false (ค่าเริ่มต้น ใช้ตอน poll เป็น
+ * ระยะและตอนแท็บกลับมา visible) ดึงมาแค่เอกสารที่ยังไม่ printed จาก Worker (?unprinted=1 กรองฝั่ง SQL)
+ * แล้ว merge (upsert ตาม _id) เข้า D.docs เดิม โดยไม่ลบเอกสารที่ printed แล้วซึ่งไม่ได้ติดมาในรอบนี้ออก —
+ * ลดจำนวน row read ต่อ poll ลงเหลือแค่ส่วนที่ยัง active จริงๆ แทนที่จะโตไม่มีที่สิ้นสุดตามเอกสารสะสมทั้งหมด
+ */
+async function loadDocs(full){
   try{
-    D.docs = await window.fsList('documents');
+    const fresh = await window.fsList('documents', full ? undefined : 'unprinted=1');
+    if(full || !D.docs.length){
+      D.docs = fresh;
+    }else{
+      const byId = {};
+      D.docs.forEach(function(d){ byId[d._id]=d; });
+      fresh.forEach(function(d){ byId[d._id]=d; });
+      D.docs = Object.values(byId);
+    }
     D.docs.sort((a,b)=> (b.updatedAt? new Date(b.updatedAt):0) - (a.updatedAt? new Date(a.updatedAt):0));
     $('syncBadge').textContent='ออนไลน์ · อัปเดตล่าสุด '+new Date().toLocaleTimeString('th-TH');
     $('syncBadge').style.background='var(--tealSoft)'; $('syncBadge').style.color='var(--tealStrong)';
@@ -383,7 +397,7 @@ window.deleteDocument = async function(){
     await window.fsDelete('documents', D.modalDoc._id);
     toast('ลบเอกสาร '+D.modalDoc._id+' ทิ้งถาวรแล้ว');
     closeModal();
-    loadDocs();
+    loadDocs(true); // ต้องโหลดเต็ม — โหมด merge ไม่ลบรายการที่หายไปออกจาก D.docs ให้เอง
   }catch(e){ console.error('deleteDocument failed:', e); toast('ลบไม่สำเร็จ — ตรวจการเชื่อมต่อ'); }
 };
 async function saveModalMeta(){
@@ -395,7 +409,7 @@ async function saveModalMeta(){
       items:items, itemCount:items.length
     });
     toast('บันทึกการแก้ไขแล้ว');
-    loadDocs();
+    loadDocs(true); // เอกสารที่แก้อาจเป็น printed แล้วก็ได้ — โหลดเต็มให้ชัวร์ว่าเห็นค่าล่าสุด
   }catch(e){ toast('บันทึกไม่สำเร็จ — ตรวจการเชื่อมต่อ'); }
 }
 
@@ -469,7 +483,7 @@ async function downloadDoc(){
     toast('ดาวน์โหลดแล้ว (ครั้งที่ '+newCount+') — เปลี่ยนสถานะเป็นพิมพ์แล้ว');
     D.modalDoc.downloadCount = newCount; D.modalDoc.status='printed';
     $('downloadInfo').textContent = 'ดาวน์โหลดแล้ว '+newCount+' ครั้ง';
-    loadDocs();
+    loadDocs(true); // เพิ่งเปลี่ยนสถานะเป็น printed — โหมด merge จะไม่ดึงมาอัปเดตให้จนกว่าจะโหลดเต็มรอบถัดไป
   }catch(e){ console.error(e); toast('ดาวน์โหลดไม่สำเร็จ: '+e.message); }
 }
 
@@ -644,16 +658,14 @@ window.uploadEmployees = async function(inp){
 };
 
 /* ---------- init ---------- */
-// เดิม poll ทุก 4 วิแบบไม่มีเงื่อนไข ทั้งวันทั้งคืนแม้แท็บถูกซ่อน — fsList อ่านทั้ง collection ทุกครั้ง
-// (นับเป็น 1 row read ต่อ 1 เอกสารที่คืนมา ทั้งฝั่ง Firestore เดิมและ D1 ปัจจุบัน) เปิดค้างไว้ไม่กี่ชั่วโมง
-// ก็ชนโควตาฟรี ทำให้แอปทั้งระบบใช้งานไม่ได้ทั้งวัน — ยืดเป็น 20 วิ ก่อน แล้วยืดต่อเป็น 60 วิ (ลดต้นทุนอีก ~3
-// เท่า) เพราะยังเห็นเอกสารใหม่ภายใน 1 นาทีอยู่ดี ไม่กระทบการใช้งานจริงมาก + หยุด poll ตอนแท็บไม่ได้เปิดดูอยู่
-// (ขั้นต่อไปถ้าจำนวนเอกสารสะสมเยอะขึ้นเรื่อยๆ ควรแก้ที่ Worker ให้กรองเฉพาะเอกสารที่ยังไม่ printed หรือ
-// แค่ N วันล่าสุดแทนการดึงทุกใบตลอดกาล — ไม่ใช่แค่ยืดเวลา poll เพราะต้นทุนต่อครั้งจะโตไม่มีที่สิ้นสุดตาม
-// จำนวนเอกสารสะสมอยู่ดี ต้องแก้ schema/query ฝั่ง Worker เพิ่ม ยังไม่ได้ทำในรอบนี้)
+// เดิม poll ทุก 4 วิแบบไม่มีเงื่อนไข ทั้งวันทั้งคืนแม้แท็บถูกซ่อน ดึงทั้ง collection ทุกครั้ง (นับเป็น 1 row
+// read ต่อ 1 เอกสารที่คืนมา) เปิดค้างไว้ไม่กี่ชั่วโมงก็ชนโควตาฟรี — แก้ 2 ชั้น: (1) ยืดเป็น 20 วิ แล้วเป็น
+// 60 วิ ยังเห็นเอกสารใหม่ภายใน 1 นาทีอยู่ดี + หยุด poll ตอนแท็บไม่ได้เปิดดูอยู่ (2) โหลดเต็มแค่ตอนเปิดหน้า
+// ครั้งแรก จากนั้น poll เป็นระยะ/ตอนแท็บกลับมา visible ดึงมาแค่เอกสารที่ยังไม่ printed (ดู loadDocs())
+// ต้นทุนต่อ poll เลยไม่โตตามจำนวนเอกสารสะสมทั้งหมดอีกต่อไป จะโตแค่ตามจำนวนเอกสารที่ "ยัง active" เท่านั้น
 async function init(){
   try{ await window.fsAutoLogin(); }catch(e){}
-  await loadDocs();
+  await loadDocs(true);
   setInterval(function(){ if(!document.hidden) loadDocs(); }, 60000);
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) loadDocs(); });
 }
