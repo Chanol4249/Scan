@@ -249,9 +249,9 @@ window.buildPriceTagsHtml = function (items) {
     'body{margin:0;font-family:"Leelawadee UI","Noto Sans Thai",Tahoma,Arial,sans-serif}' +
     '.sheet{display:grid;grid-template-columns:repeat(4,5cm);grid-auto-rows:4cm;justify-content:center}' +
     '.tag{width:5cm;height:4cm;box-sizing:border-box;border:1px solid #999;' +
-    'padding:2mm;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;break-inside:avoid;page-break-inside:avoid}' +
+    'padding:2mm;display:flex;flex-direction:column;overflow:hidden;break-inside:avoid;page-break-inside:avoid}' +
     '.perkg{font-size:9px;color:#555}' +
-    '.mid{text-align:center}' +
+    '.mid{text-align:center;margin-top:2mm}' +
     '.nm{font-size:11px;font-weight:700;line-height:1.2;display:-webkit-box;-webkit-line-clamp:1;' +
     '-webkit-box-orient:vertical;overflow:hidden}' +
     '.reduceLabel{font-size:15px;font-weight:800;margin-top:1mm}' +
