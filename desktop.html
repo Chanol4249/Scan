@@ -468,14 +468,25 @@ async function loadEmployees(){
     renderEmployees();
   }catch(e){ toast('โหลดรายชื่อพนักงานไม่สำเร็จ'); }
 }
+// พนักงาน 1 คนมีได้แค่ 1 สาขา (ค่าเดียวตรงๆ ไม่ใช่ array) — dropdown นี้ใช้ทั้งตอนเพิ่มพนักงานใหม่และ
+// แก้ไขสาขาทีหลังในตารางรายชื่อ ใช้ตัวสร้าง option ร่วมกันจะได้ไม่ต้องพิมพ์ซ้ำ
+function branchOptionsHtml(selected){
+  return '<option value=""'+(!selected?' selected':'')+'>เลือกสาขา</option>'+
+    (window.BRANCHES||[]).map(b=>'<option value="'+esc(b)+'"'+(b===selected?' selected':'')+'>'+esc(b)+'</option>').join('');
+}
 function renderEmployees(){
   if(!D.employees.length){ $('empBody').innerHTML=''; $('empEmpty').style.display='block'; return; }
   $('empEmpty').style.display='none';
   $('empBody').innerHTML = D.employees.map(e=>
-    '<tr><td>'+esc(e._id)+'</td><td>'+esc(e.name)+'</td><td>'+esc(e.branch||'')+'</td>'+
+    '<tr><td>'+esc(e._id)+'</td><td>'+esc(e.name)+'</td>'+
+    '<td><select class="cellIn" onchange="updateEmployeeBranch(\''+e._id+'\',this.value)">'+branchOptionsHtml(e.branch||'')+'</select></td>'+
     '<td><button class="btn danger" onclick="removeEmployee(\''+e._id+'\')">ลบ</button></td></tr>'
   ).join('');
 }
+window.updateEmployeeBranch = async function(code, branch){
+  try{ await window.fsUpdate('employees', code, {branch}); toast('แก้ไขสาขาแล้ว'); loadEmployees(); }
+  catch(e){ toast('แก้ไขไม่สำเร็จ — ตรวจการเชื่อมต่อ'); }
+};
 window.addEmployee = async function(){
   const code=$('newEmpCode').value.trim(), name=$('newEmpName').value.trim(), branch=$('newEmpBranch').value;
   if(!code||!name){ toast('กรอกรหัสและชื่อให้ครบ'); return; }
