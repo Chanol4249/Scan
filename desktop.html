@@ -164,7 +164,7 @@ hr.d{border:none; border-top:1px solid var(--divider); margin:16px 0}
   <div class="inner">
     <h2 id="modalTitle">เอกสาร</h2>
     <div class="row2">
-      <div class="field"><label class="fld">สาขา</label><input id="mBranch"></div>
+      <div class="field"><label class="fld">สาขา</label><select id="mBranch"><option value="">เลือกสาขา</option></select></div>
       <div class="field" id="mDeptWrap"><label class="fld">แผนก</label><input id="mDept"></div>
     </div>
     <table>
@@ -187,6 +187,7 @@ hr.d{border:none; border-top:1px solid var(--divider); margin:16px 0}
 <script src="vendor/jszip.min.js"></script>
 <script src="vendor/exceljs.min.js"></script>
 <script src="cf-config.js?v=20260905-1200"></script>
+<script src="js/branches.js?v=20260908-0001"></script>
 <script src="js/cfdb.js?v=20260907-0723"></script>
 <script src="js/export.js?v=20260908-2500"></script>
 <script>
@@ -194,6 +195,13 @@ const $ = id => document.getElementById(id);
 function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show');
   clearTimeout(t._x); t._x=setTimeout(()=>t.classList.remove('show'),2200); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+// รายชื่อสาขาตายตัวจาก js/branches.js (window.BRANCHES) — เติม <option> ให้ทั้งช่องแก้ไขสาขาในโมดัล
+// เอกสารและฟิลเตอร์สาขาในหน้ารายการ ครั้งเดียวตอนโหลดหน้า (options คงที่ ไม่ต้องรีสร้างทุกครั้งที่ render
+// เหมือนตอนก่อนหน้านี้ที่ต้องไล่หาจากเอกสารที่โหลดมาเพราะสาขาเคยเป็นช่องพิมพ์เองไม่มีชุดค่าคงที่)
+['mBranch','filterBranch'].forEach(id=>{
+  const sel = $(id);
+  (window.BRANCHES||[]).forEach(b=>{ const o=document.createElement('option'); o.value=b; o.textContent=b; sel.appendChild(o); });
+});
 
 const D = { docs:[], employees:[], modalDoc:null };
 const STATUS_LABEL = {scanning:'กำลังสแกน', ready:'พร้อมพิมพ์', printed:'พิมพ์แล้ว'};
@@ -228,17 +236,7 @@ async function loadDocs(){
     $('syncBadge').textContent='เชื่อมต่อไม่ได้'; $('syncBadge').style.background='#FDF4E5'; $('syncBadge').style.color='var(--warn)';
   }
 }
-// ตัวเลือกสาขาในฟิลเตอร์เป็น dropdown แต่สาขาไม่ใช่รายการตายตัวในระบบ (พนักงานพิมพ์เองในฟอร์มมือถือ
-// ช่องสาขา ไม่มีชุดค่าคงที่) จึงต้องไล่หาค่าที่ต่างกันจริงจากเอกสารที่โหลดมาแล้วทุกครั้งที่ render — คงค่า
-// ที่เลือกไว้เดิมไว้ด้วย ไม่งั้น dropdown จะรีเซ็ตกลับ "ทุกสาขา" ทุกรอบที่ poll ข้อมูลใหม่ (ทุก 20 วิ)
-function renderBranchOptions(){
-  const sel = $('filterBranch'), current = sel.value;
-  const branches = Array.from(new Set(D.docs.map(d=>String(d.branch||'').trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'th'));
-  sel.innerHTML = '<option value="">ทุกสาขา</option>' +
-    branches.map(b=>'<option value="'+esc(b)+'"'+(b===current?' selected':'')+'>'+esc(b)+'</option>').join('');
-}
 function renderDocs(){
-  renderBranchOptions();
   const q = ($('searchEmp').value||'').trim().toLowerCase();
   const modeFilter = $('filterMode').value;
   const branchFilter = $('filterBranch').value;

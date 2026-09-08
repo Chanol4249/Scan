@@ -315,7 +315,7 @@ button.mode-tile:focus-visible{outline:3px solid rgba(22,155,117,.24);outline-of
 <section id="vList" class="wrap" style="display:none">
   <div class="card">
     <h2>ข้อมูลหัวฟอร์ม</h2>
-    <div class="field"><label class="fld">สาขา</label><input id="fBranch" placeholder="ไทรน้อย 11252"></div>
+    <div class="field"><label class="fld">สาขา</label><select id="fBranch"><option value="">เลือกสาขา</option></select></div>
     <div class="row2">
       <div class="field" id="deptFieldWrap"><label class="fld">แผนก</label>
         <select id="fDept">
@@ -446,6 +446,7 @@ button.mode-tile:focus-visible{outline:3px solid rgba(22,155,117,.24);outline-of
 <div class="toast" id="toast"></div>
 
 <script src="cf-config.js?v=20260905-1200"></script>
+<script src="js/branches.js?v=20260908-0001"></script>
 <script src="js/cfdb.js?v=20260907-0723"></script>
 <script src="js/export.js?v=20260908-2500"></script>
 <script>
@@ -468,6 +469,8 @@ document.addEventListener('touchstart', function(){}, {passive:true});
 const $ = id => document.getElementById(id);
 function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show');
   clearTimeout(t._x); t._x=setTimeout(()=>t.classList.remove('show'),1900); }
+// รายชื่อสาขาตายตัวจาก js/branches.js (window.BRANCHES) — เติม <option> ให้ช่องสาขาครั้งเดียวตอนโหลดหน้า
+(window.BRANCHES||[]).forEach(b=>{ const o=document.createElement('option'); o.value=b; o.textContent=b; $('fBranch').appendChild(o); });
 // ห้ามตัดเลข 0 นำหน้าออก — บาร์โค้ดจริง (เช่น EAN-13) มีความหมายทุกหลักรวมถึง 0 นำหน้า
 function normBc(v){ return String(v==null?'':v).replace(/\D/g,''); }
 // บาร์โค้ดสินค้าชั่งน้ำหนัก/นับชิ้น (Fresh Food, Bakery, Deli) ฝังน้ำหนัก/ราคาไว้ในตัวเลขเอง — คนละแพ็ค
