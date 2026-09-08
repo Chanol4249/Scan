@@ -362,7 +362,18 @@ async function downloadPriceTags(){
   const items = D.modalDoc.items||[];
   if(!items.length){ toast('ไม่มีรายการให้พิมพ์ป้าย'); return; }
   try{
-    const {blob, filename} = await window.buildPriceTagsXlsx(items, D.modalDoc._id);
+    // รายการที่ไม่มีราคาต่อกก.บันทึกไว้ในเอกสาร (เช่นของที่ไม่ได้สแกนบาร์โค้ดแบบฝังน้ำหนัก แต่ฐานข้อมูล
+    // สินค้ากลางก็ยังมีราคาต่อกก.ของ PLU นั้นอยู่ดี) ให้หาจากฐานข้อมูลสินค้ามาเติมเฉพาะตอน export ป้ายราคา
+    // นี้เท่านั้น — ไม่แตะฟอร์มสแกนฝั่งมือถือ/ไม่เขียนกลับเข้าเอกสารเดิม
+    const products = await window.fsList('products').catch(()=>[]);
+    const priceByKey = {};
+    products.forEach(function(p){ if(p.price) priceByKey[p._id] = p.price; });
+    const tagItems = items.map(function(it){
+      if(it.unitPrice) return it;
+      const fallback = priceByKey[scaleKey(normBc(it.bc||''))];
+      return fallback ? Object.assign({}, it, {unitPrice: fallback}) : it;
+    });
+    const {blob, filename} = await window.buildPriceTagsXlsx(tagItems, D.modalDoc._id);
     const a=document.createElement('a');
     a.href=URL.createObjectURL(blob); a.download=filename;
     document.body.appendChild(a); a.click();
