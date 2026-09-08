@@ -140,19 +140,20 @@ hr.d{border:none; border-top:1px solid var(--divider); margin:16px 0}
     </div>
     <div class="card">
       <h2>รายชื่อพนักงาน</h2>
-      <div class="row2">
+      <div class="row3">
         <div class="field"><label class="fld">รหัสพนักงาน</label><input id="newEmpCode"></div>
         <div class="field"><label class="fld">ชื่อ-สกุล</label><input id="newEmpName"></div>
+        <div class="field"><label class="fld">สาขา</label><select id="newEmpBranch"><option value="">เลือกสาขา</option></select></div>
       </div>
       <button class="btn" onclick="addEmployee()">เพิ่มพนักงาน</button>
       <hr class="d">
-      <p class="tag" style="margin-bottom:12px">หรืออัปโหลดทีเดียวหลายคน — หัวคอลัมน์: รหัสพนักงาน (หรือ CODE), ชื่อ-สกุล (หรือ NAME) — บันทึกจาก Excel เป็น CSV UTF-8</p>
+      <p class="tag" style="margin-bottom:12px">หรืออัปโหลดทีเดียวหลายคน — หัวคอลัมน์: รหัสพนักงาน (หรือ CODE), ชื่อ-สกุล (หรือ NAME), สาขา (ชื่อสาขาภาษาไทยก็ได้ ระบบจะจับคู่ให้อัตโนมัติ) — บันทึกจาก Excel เป็น CSV UTF-8</p>
       <div class="filebtn"><button class="btn ghost" type="button">เลือกไฟล์ CSV พนักงาน…</button>
         <input type="file" accept=".csv,text/csv" onchange="uploadEmployees(this)"></div>
       <p id="employeesMsg" style="margin-top:10px;color:var(--sec);font-size:13px"></p>
       <hr class="d">
       <table>
-        <thead><tr><th>รหัส</th><th>ชื่อ</th><th></th></tr></thead>
+        <thead><tr><th>รหัส</th><th>ชื่อ</th><th>สาขา</th><th></th></tr></thead>
         <tbody id="empBody"></tbody>
       </table>
       <div class="empty" id="empEmpty" style="display:none">ยังไม่มีรายชื่อพนักงาน</div>
@@ -198,7 +199,7 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 // รายชื่อสาขาตายตัวจาก js/branches.js (window.BRANCHES) — เติม <option> ให้ทั้งช่องแก้ไขสาขาในโมดัล
 // เอกสารและฟิลเตอร์สาขาในหน้ารายการ ครั้งเดียวตอนโหลดหน้า (options คงที่ ไม่ต้องรีสร้างทุกครั้งที่ render
 // เหมือนตอนก่อนหน้านี้ที่ต้องไล่หาจากเอกสารที่โหลดมาเพราะสาขาเคยเป็นช่องพิมพ์เองไม่มีชุดค่าคงที่)
-['mBranch','filterBranch'].forEach(id=>{
+['mBranch','filterBranch','newEmpBranch'].forEach(id=>{
   const sel = $(id);
   (window.BRANCHES||[]).forEach(b=>{ const o=document.createElement('option'); o.value=b; o.textContent=b; sel.appendChild(o); });
 });
@@ -471,16 +472,16 @@ function renderEmployees(){
   if(!D.employees.length){ $('empBody').innerHTML=''; $('empEmpty').style.display='block'; return; }
   $('empEmpty').style.display='none';
   $('empBody').innerHTML = D.employees.map(e=>
-    '<tr><td>'+esc(e._id)+'</td><td>'+esc(e.name)+'</td>'+
+    '<tr><td>'+esc(e._id)+'</td><td>'+esc(e.name)+'</td><td>'+esc(e.branch||'')+'</td>'+
     '<td><button class="btn danger" onclick="removeEmployee(\''+e._id+'\')">ลบ</button></td></tr>'
   ).join('');
 }
 window.addEmployee = async function(){
-  const code=$('newEmpCode').value.trim(), name=$('newEmpName').value.trim();
+  const code=$('newEmpCode').value.trim(), name=$('newEmpName').value.trim(), branch=$('newEmpBranch').value;
   if(!code||!name){ toast('กรอกรหัสและชื่อให้ครบ'); return; }
   try{
-    await window.fsUpsert('employees', code, {name, active:true});
-    $('newEmpCode').value=''; $('newEmpName').value='';
+    await window.fsUpsert('employees', code, {name, active:true, branch});
+    $('newEmpCode').value=''; $('newEmpName').value=''; $('newEmpBranch').value='';
     toast('เพิ่มพนักงานแล้ว'); loadEmployees();
   }catch(e){ toast('เพิ่มไม่สำเร็จ — ตรวจการเชื่อมต่อ'); }
 };
@@ -561,16 +562,32 @@ window.uploadEmployees = async function(inp){
     const h=(rows[0]||[]).map(x=>String(x||'').trim().toUpperCase());
     const find=ks=>h.findIndex(x=>ks.some(k=>x.indexOf(k)>=0));
     const iC=find(['CODE','รหัส']), iN=find(['NAME','ชื่อ']);
+    let iB=find(['สาขา','BRANCH']);
+    // ไฟล์จริงหลายไฟล์ไม่มีหัวคอลัมน์ให้สาขา (แถวหัวจบด้วย comma เฉยๆ) — หาด้วยชื่อคอลัมน์ไม่เจอ แต่ถ้ามี
+    // คอลัมน์เกินกว่ารหัส+ชื่อ ให้ถือว่าคอลัมน์สุดท้ายคือสาขา
+    if(iB<0 && h.length>Math.max(iC,iN)+1) iB=h.length-1;
     if(iC<0){ $('employeesMsg').textContent='ไม่พบคอลัมน์รหัสพนักงาน'; return; }
-    let ok=0, total=0;
+    let ok=0, total=0, unmatched=0;
     for(let i=1;i<rows.length;i++){
       const code=String(rows[i][iC]||'').trim(); if(!code) continue;
       total++;
       const name=iN>=0&&rows[i][iN]?String(rows[i][iN]).trim():code;
-      try{ await window.fsUpsert('employees', code, {name, active:true}); ok++; }catch(e){}
+      const o={name, active:true};
+      // มีคอลัมน์สาขาในไฟล์นี้เท่านั้นถึงจะเขียนทับ branch — ไม่งั้นไฟล์เก่าที่ไม่มีคอลัมน์สาขาจะไปเคลียร์
+      // สาขาที่เคยตั้งไว้แล้วของพนักงานที่มีอยู่โดยไม่ตั้งใจ (fsUpdate merge เฉพาะฟิลด์ที่ส่งมาเท่านั้น)
+      if(iB>=0){
+        const raw=String(rows[i][iB]||'').trim();
+        if(raw){
+          const mapped=(window.BRANCH_TH_ALIASES&&window.BRANCH_TH_ALIASES[raw])||raw;
+          if(!(window.BRANCHES||[]).includes(mapped)) unmatched++;
+          o.branch=mapped;
+        }else o.branch='';
+      }
+      try{ await window.fsUpsert('employees', code, o); ok++; }catch(e){}
       if(total%50===0) $('employeesMsg').textContent='กำลังอัปโหลด… '+ok+'/'+total;
     }
-    $('employeesMsg').textContent='อัปโหลดสำเร็จ '+ok+'/'+total+' คน';
+    $('employeesMsg').textContent='อัปโหลดสำเร็จ '+ok+'/'+total+' คน'+
+      (unmatched?(' (จับคู่ชื่อสาขาไม่ได้ '+unmatched+' แถว — ตรวจตัวสะกดในไฟล์)'):'');
     toast('อัปเดตรายชื่อพนักงานแล้ว');
     loadEmployees();
   }catch(e){ console.error(e); $('employeesMsg').textContent='อ่านไฟล์ไม่สำเร็จ'; }
