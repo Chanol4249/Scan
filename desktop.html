@@ -169,7 +169,7 @@ hr.d{border:none; border-top:1px solid var(--divider); margin:16px 0}
 <script src="vendor/exceljs.min.js"></script>
 <script src="cf-config.js?v=20260905-1200"></script>
 <script src="js/cfdb.js?v=20260907-0723"></script>
-<script src="js/export.js?v=20260907-1130"></script>
+<script src="js/export.js?v=20260908-1150"></script>
 <script>
 const $ = id => document.getElementById(id);
 function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show');
@@ -334,7 +334,20 @@ async function saveModalMeta(){
  * หนึ่งเอกสาร = หนึ่งไฟล์ดาวน์โหลดเสมอ (ใช้ buildExportPackage) — เอกสารที่เกิน 43/20 รายการ
  * จะถูกห่อเป็น .zip ไฟล์เดียว (มีหลาย .xlsx ข้างในตามจำนวนหน้า) แทนการกดดาวน์โหลดทีละหน้า */
 function renderDownloadBtns(d){
-  $('downloadBtns').innerHTML = '<button class="btn teal" onclick="downloadDoc()">ดาวน์โหลด (.xlsx)</button>';
+  let html = '<button class="btn teal" onclick="downloadDoc()">ดาวน์โหลด (.xlsx)</button>';
+  if(d.mode==='RTC') html += '<button class="btn ghost" onclick="downloadPriceTags()">ดาวน์โหลดป้ายราคา</button>';
+  $('downloadBtns').innerHTML = html;
+}
+// เปิดหน้าป้ายราคา (RTC) เป็นแท็บใหม่ให้กดพิมพ์/บันทึกเป็น PDF เอง — ไม่ผ่าน .xlsx เพราะเป็นป้ายกระดาษ
+// ขนาดจริง 5x4ซม. ต่อดวง ไม่ใช่แบบฟอร์มตามเทมเพลตของ Big C
+function downloadPriceTags(){
+  if(!D.modalDoc) return;
+  const items = D.modalDoc.items||[];
+  if(!items.length){ toast('ไม่มีรายการให้พิมพ์ป้าย'); return; }
+  const html = window.buildPriceTagsHtml(items);
+  const url = URL.createObjectURL(new Blob([html], {type:'text/html'}));
+  window.open(url, '_blank');
+  setTimeout(()=>URL.revokeObjectURL(url), 60000);
 }
 async function downloadDoc(){
   if(!D.modalDoc) return;

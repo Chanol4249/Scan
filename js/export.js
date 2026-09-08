@@ -198,6 +198,58 @@ window.buildExportXlsx = async function (mode, items, meta, page) {
  * เพราะเทมเพลตต้นฉบับแต่ละหน้าเป็นฟอร์มพิมพ์แยกกันจริง (คนละใบกระดาษ) รวมเป็นชีทเดียวไม่ได้
  * โดยไม่เสี่ยงทำให้ไฟล์ .xlsx เสีย — แต่ยังเป็น "การดาวน์โหลดครั้งเดียว ไฟล์เดียว" ตามที่ต้องการ
  */
+/*
+ * สร้างหน้า HTML สำหรับพิมพ์ป้ายราคาลดราคา (เฉพาะ RTC) ขนาดจริงดวงละ 5 x 4 ซม. — ไม่มีกราฟิกบาร์โค้ด
+ * ในป้าย มีแค่เลขบาร์โค้ดเป็นตัวหนังสือ (ของจริงแคชเชียร์สแกนจากบาร์โค้ดเดิมบนสินค้าอยู่แล้ว ไม่ต้องพิมพ์ซ้ำ
+ * เป็นกราฟิกให้สแกนจากป้ายนี้) แต่ละรายการพิมพ์ซ้ำตามจำนวนชิ้น (qty) เพราะของจริงแต่ละชิ้นต้องมีป้ายของตัวเอง
+ */
+function exportEscHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function exportTagNewPrice(price, pct) {
+  price = Number(price); pct = Number(pct);
+  if (!price || !pct) return price || 0;
+  return Math.ceil(Number((price - price * pct).toFixed(6)));
+}
+// ราคาต่อกก.หลังลดราคา — สูตรเดียวกับ calcPrice()/roundThaiCash() ในหน้ามือถือ (ปัดลงทวีคูณ 25 สตางค์
+// ตามเครื่องชั่งจริง) คืนค่า null ถ้ารายการนี้ไม่มีราคาต่อกก.เดิมบันทึกไว้ (สินค้านับชิ้น ไม่ใช่ชั่งน้ำหนัก)
+function exportTagPerKg(unitPrice, pct) {
+  unitPrice = Number(unitPrice); pct = Number(pct);
+  if (!unitPrice || !pct) return null;
+  return Math.floor(Number((unitPrice - unitPrice * pct).toFixed(6)) * 4) / 4;
+}
+window.buildPriceTagsHtml = function (items) {
+  const tags = [];
+  (items || []).forEach(function (it) {
+    const qty = Math.max(1, Number(it.qty) || 1);
+    const perKg = exportTagPerKg(it.unitPrice, it.pct);
+    const net = exportTagNewPrice(it.price, it.pct);
+    const tagHtml = '<div class="tag">' +
+      (perKg != null ? '<div class="perkg">' + perKg.toLocaleString() + ' บ./กก.</div>' : '<div class="perkg">&nbsp;</div>') +
+      '<div class="mid"><div class="nm">' + exportEscHtml(it.name) + '</div>' +
+      '<div class="net">' + net.toLocaleString() + ' ฿</div></div>' +
+      '<div class="bc">' + exportEscHtml(it.bc) + '</div>' +
+      '</div>';
+    for (let i = 0; i < qty; i++) tags.push(tagHtml);
+  });
+  return '<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>ป้ายราคา</title><style>' +
+    '@page{size:A4;margin:8mm}' +
+    'body{margin:0;font-family:"Leelawadee UI","Noto Sans Thai",Tahoma,Arial,sans-serif}' +
+    '.sheet{display:flex;flex-wrap:wrap;gap:2mm}' +
+    '.tag{width:5cm;height:4cm;box-sizing:border-box;border:1px solid #999;border-radius:2mm;' +
+    'padding:2mm;display:flex;flex-direction:column;justify-content:space-between;page-break-inside:avoid;overflow:hidden}' +
+    '.perkg{font-size:9px;color:#555}' +
+    '.mid{text-align:center}' +
+    '.nm{font-size:12px;font-weight:700;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;' +
+    '-webkit-box-orient:vertical;overflow:hidden}' +
+    '.net{font-size:22px;font-weight:800;margin-top:2mm}' +
+    '.bc{font-size:9px;color:#555;text-align:center;letter-spacing:.02em}' +
+    '.noprint{padding:10px}' +
+    '@media print{.noprint{display:none}}' +
+    '</style></head><body>' +
+    '<div class="noprint"><button onclick="window.print()">พิมพ์ / บันทึกเป็น PDF</button></div>' +
+    '<div class="sheet">' + tags.join('') + '</div>' +
+    '</body></html>';
+};
+
 window.buildExportPackage = async function (mode, items, meta) {
   const cfg = EXPORT_CFG[mode], cap = cfg.last - cfg.first + 1;
   const pages = Math.max(1, Math.ceil((items || []).length / cap));
